@@ -13,38 +13,36 @@ ETL Router is a **control plane** for data pipelines. Instead of hardcoding conn
 - **Kubernetes Native** - Deploy with CRDs and manage with `kubectl`
 
 ```mermaid
-flowchart LR
-    subgraph sources["Sources"]
-        kafka["Kafka"]
-        s3in["S3"]
-        http["HTTP"]
+flowchart TB
+    subgraph control["Control Plane"]
+        subgraph raft["Router Cluster (Raft)"]
+            r1["Leader"]
+            r2["Follower"]
+            r3["Follower"]
+            r1 <-.-> r2 <-.-> r3
+        end
     end
 
-    subgraph router["ETL Router"]
-        direction TB
-        r1["Router"]
-        r2["Router"]
-        r3["Router"]
-        r1 <-.->|Raft| r2
-        r2 <-.->|Raft| r3
+    subgraph data["Data Plane (Sidecars)"]
+        subgraph src["Source Pods"]
+            sc1["Sidecar"] --- kafka["Kafka"]
+            sc2["Sidecar"] --- s3in["S3"]
+        end
+
+        subgraph tx["Transform Pods"]
+            sc3["Sidecar"] --- filter["Filter"]
+            sc4["Sidecar"] --- enrich["Enrich"]
+        end
+
+        subgraph sk["Sink Pods"]
+            sc5["Sidecar"] --- ch["ClickHouse"]
+            sc6["Sidecar"] --- pg["Postgres"]
+        end
     end
 
-    subgraph transforms["Transforms"]
-        filter["Filter"]
-        enrich["Enrich"]
-        mask["Mask PII"]
-    end
-
-    subgraph sinks["Sinks"]
-        s3out["S3"]
-        ch["ClickHouse"]
-        pg["Postgres"]
-    end
-
-    sources --> router
-    router --> transforms
-    transforms --> router
-    router --> sinks
+    raft -.->|Assign pipelines| data
+    sc1 & sc2 -->|Records| sc3 & sc4
+    sc3 & sc4 -->|Records| sc5 & sc6
 ```
 
 ## Key Features
