@@ -62,3 +62,21 @@ export const COMMIT_GROUP_OFFSET = gql`
     commitGroupOffset(groupId: $groupId, sourceId: $sourceId, partitionId: $partitionId, offset: $offset)
   }
 `;
+
+export const RESOLVE_ERROR = gql`
+  mutation ResolveError($id: String!) {
+    resolveError(id: $id) {
+      success
+      message
+    }
+  }
+`;
+
+export const CLEAR_RESOLVED_ERRORS = gql`
+  mutation ClearResolvedErrors {
+    clearResolvedErrors {
+      success
+      message
+    }
+  }
+`;

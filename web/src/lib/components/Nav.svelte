@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { cn } from '$lib/utils';
-  import { LayoutDashboard, Server, GitBranch, Activity, Shield, BarChart3 } from 'lucide-svelte';
+  import { LayoutDashboard, Server, GitBranch, Activity, Shield, BarChart3, AlertTriangle } from 'lucide-svelte';
   import { authClient, isAdmin } from '$lib/auth-client';
   import UserMenu from './UserMenu.svelte';
 
@@ -19,6 +19,7 @@
     { href: '/pipelines', label: 'Pipelines', icon: GitBranch },
     { href: '/cluster', label: 'Cluster', icon: Activity },
     { href: '/metrics', label: 'Metrics', icon: BarChart3 },
+    { href: '/errors', label: 'Errors', icon: AlertTriangle },
   ];
 
   const adminLinks = [

@@ -3,9 +3,10 @@ use async_graphql::{Context, Object, Result, Error};
 use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
 
-use etl_raft::{RaftNode, RaftRole, RouterCommand, SerializableTimestamp};
+use etl_raft::{RaftNode, RouterCommand, SerializableTimestamp};
 
 use super::types::*;
+use super::error_buffer::ErrorBuffer;
 
 pub struct QueryRoot;
 
@@ -206,6 +207,21 @@ impl QueryRoot {
             .collect();
 
         Ok(watermarks)
+    }
+
+    async fn operational_errors(&self, ctx: &Context<'_>, filter: Option<ErrorFilter>) -> Result<Vec<OperationalError>> {
+        let error_buffer = ctx.data::<ErrorBuffer>()?;
+        Ok(error_buffer.get_errors(filter).await)
+    }
+
+    async fn operational_error(&self, ctx: &Context<'_>, id: String) -> Result<Option<OperationalError>> {
+        let error_buffer = ctx.data::<ErrorBuffer>()?;
+        Ok(error_buffer.get_error(&id).await)
+    }
+
+    async fn error_stats(&self, ctx: &Context<'_>) -> Result<ErrorStats> {
+        let error_buffer = ctx.data::<ErrorBuffer>()?;
+        Ok(error_buffer.get_stats().await)
     }
 }
 
@@ -455,6 +471,30 @@ impl MutationRoot {
                 message: Some(e.to_string()),
             }),
         }
+    }
+
+    async fn resolve_error(&self, ctx: &Context<'_>, id: String) -> Result<MutationResult> {
+        let error_buffer = ctx.data::<ErrorBuffer>()?;
+        if error_buffer.resolve_error(&id).await {
+            Ok(MutationResult {
+                success: true,
+                message: Some("Error resolved successfully".to_string()),
+            })
+        } else {
+            Ok(MutationResult {
+                success: false,
+                message: Some("Error not found".to_string()),
+            })
+        }
+    }
+
+    async fn clear_resolved_errors(&self, ctx: &Context<'_>) -> Result<MutationResult> {
+        let error_buffer = ctx.data::<ErrorBuffer>()?;
+        error_buffer.clear_resolved().await;
+        Ok(MutationResult {
+            success: true,
+            message: Some("Resolved errors cleared".to_string()),
+        })
     }
 }
 

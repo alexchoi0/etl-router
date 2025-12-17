@@ -15,11 +15,13 @@ use tracing::info;
 
 use etl_raft::RaftNode;
 use super::schema::{create_schema, RouterSchema};
+use super::error_buffer::ErrorBuffer;
 
 #[derive(Clone)]
 pub struct AppState {
     pub schema: RouterSchema,
     pub raft_node: Arc<RwLock<RaftNode>>,
+    pub error_buffer: ErrorBuffer,
 }
 
 pub struct GraphQLServer {
@@ -30,8 +32,13 @@ pub struct GraphQLServer {
 impl GraphQLServer {
     pub fn new(addr: SocketAddr, raft_node: Arc<RwLock<RaftNode>>) -> Self {
         let schema = create_schema();
-        let state = AppState { schema, raft_node };
+        let error_buffer = ErrorBuffer::new();
+        let state = AppState { schema, raft_node, error_buffer };
         Self { addr, state }
+    }
+
+    pub fn error_buffer(&self) -> ErrorBuffer {
+        self.state.error_buffer.clone()
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
@@ -63,9 +70,10 @@ async fn graphql_handler(
 ) -> GraphQLResponse {
     let schema = state.schema.clone();
     let raft_node = state.raft_node.clone();
+    let error_buffer = state.error_buffer.clone();
 
     schema
-        .execute(req.into_inner().data(raft_node))
+        .execute(req.into_inner().data(raft_node).data(error_buffer))
         .await
         .into()
 }

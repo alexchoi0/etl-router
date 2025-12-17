@@ -168,3 +168,53 @@ pub struct MutationResult {
     pub success: bool,
     pub message: Option<String>,
 }
+
+#[derive(Enum, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum ErrorType {
+    PipelineFailure,
+    TransformError,
+    SinkError,
+    SourceError,
+    DlqRecord,
+    ServiceUnhealthy,
+    Timeout,
+    ValidationError,
+    Unknown,
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct OperationalError {
+    pub id: String,
+    pub error_type: ErrorType,
+    pub pipeline_id: Option<String>,
+    pub service_id: Option<String>,
+    pub stage_id: Option<String>,
+    pub message: String,
+    pub details: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub retry_count: u32,
+    pub resolved: bool,
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct ErrorTypeCount {
+    pub error_type: ErrorType,
+    pub count: u64,
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct ErrorStats {
+    pub total_errors: u64,
+    pub unresolved_count: u64,
+    pub errors_by_type: Vec<ErrorTypeCount>,
+    pub errors_last_hour: u64,
+}
+
+#[derive(InputObject)]
+pub struct ErrorFilter {
+    pub error_type: Option<ErrorType>,
+    pub pipeline_id: Option<String>,
+    pub resolved: Option<bool>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}

@@ -172,3 +172,51 @@ export const METRICS_OVERVIEW = gql`
     }
   }
 `;
+
+export const ERROR_STATS = gql`
+  query ErrorStats {
+    errorStats {
+      totalErrors
+      unresolvedCount
+      errorsLastHour
+      errorsByType {
+        errorType
+        count
+      }
+    }
+  }
+`;
+
+export const OPERATIONAL_ERRORS = gql`
+  query OperationalErrors($filter: ErrorFilter) {
+    operationalErrors(filter: $filter) {
+      id
+      errorType
+      pipelineId
+      serviceId
+      stageId
+      message
+      details
+      timestamp
+      retryCount
+      resolved
+    }
+  }
+`;
+
+export const OPERATIONAL_ERROR = gql`
+  query OperationalError($id: String!) {
+    operationalError(id: $id) {
+      id
+      errorType
+      pipelineId
+      serviceId
+      stageId
+      message
+      details
+      timestamp
+      retryCount
+      resolved
+    }
+  }
+`;

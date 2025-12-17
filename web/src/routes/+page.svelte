@@ -1,14 +1,15 @@
 <script lang="ts">
   import { queryStore, getContextClient } from '@urql/svelte';
-  import { CLUSTER_STATUS, SERVICES, PIPELINES } from '$lib/graphql/queries';
+  import { CLUSTER_STATUS, SERVICES, PIPELINES, ERROR_STATS } from '$lib/graphql/queries';
   import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge } from '$lib/components/ui';
-  import { Server, GitBranch, Activity, Database } from 'lucide-svelte';
+  import { Server, GitBranch, Activity, Database, AlertTriangle } from 'lucide-svelte';
 
   const client = getContextClient();
 
   const clusterQuery = queryStore({ client, query: CLUSTER_STATUS });
   const servicesQuery = queryStore({ client, query: SERVICES });
   const pipelinesQuery = queryStore({ client, query: PIPELINES });
+  const errorStatsQuery = queryStore({ client, query: ERROR_STATS });
 
   function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'success' {
     switch (role?.toLowerCase()) {
@@ -108,6 +109,66 @@
       </CardContent>
     </Card>
   </div>
+
+  <Card>
+    <CardHeader class="flex flex-row items-center justify-between">
+      <div>
+        <CardTitle>Operational Errors</CardTitle>
+        <CardDescription>Recent errors requiring attention</CardDescription>
+      </div>
+      <a href="/errors" class="text-sm text-primary hover:underline">View all →</a>
+    </CardHeader>
+    <CardContent>
+      {#if $errorStatsQuery.fetching}
+        <p class="text-muted-foreground">Loading...</p>
+      {:else if $errorStatsQuery.error}
+        <p class="text-destructive">Failed to load error stats</p>
+      {:else}
+        {@const stats = $errorStatsQuery.data?.errorStats}
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle class="h-5 w-5 text-destructive" />
+            </div>
+            <div>
+              <p class="text-2xl font-bold text-destructive">{stats?.unresolvedCount ?? 0}</p>
+              <p class="text-xs text-muted-foreground">Unresolved</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
+              <Activity class="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p class="text-2xl font-bold">{stats?.errorsLastHour ?? 0}</p>
+              <p class="text-xs text-muted-foreground">Last hour</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
+              <Database class="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p class="text-2xl font-bold">{stats?.totalErrors ?? 0}</p>
+              <p class="text-xs text-muted-foreground">Total</p>
+            </div>
+          </div>
+        </div>
+        {#if stats?.errorsByType?.length > 0}
+          <div class="mt-4 pt-4 border-t">
+            <p class="text-sm text-muted-foreground mb-2">By Type</p>
+            <div class="flex flex-wrap gap-2">
+              {#each stats.errorsByType as typeCount}
+                <Badge variant="secondary" class="font-mono">
+                  {typeCount.errorType}: {typeCount.count}
+                </Badge>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {/if}
+    </CardContent>
+  </Card>
 
   <div class="grid gap-4 md:grid-cols-2">
     <Card>
