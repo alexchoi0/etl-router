@@ -122,11 +122,34 @@
     await fetchConsumerLags();
   }
 
+  function startPolling() {
+    if (!refreshInterval) {
+      refresh();
+      refreshInterval = setInterval(refresh, 1000);
+    }
+  }
+
+  function stopPolling() {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+  }
+
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      stopPolling();
+    } else {
+      startPolling();
+    }
+  }
+
   onMount(() => {
-    refresh();
-    refreshInterval = setInterval(refresh, 2000);
+    startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
-      if (refreshInterval) clearInterval(refreshInterval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   });
 

@@ -214,4 +214,6 @@ The dashboard connects to the ETL Router GraphQL API. Key queries:
 
 ## License
 
-MIT
+Licensed under either of Apache License, Version 2.0 or MIT license, at your option.
+
+See [LICENSE-APACHE](../LICENSE-APACHE) and [LICENSE-MIT](../LICENSE-MIT) in the repository root.
