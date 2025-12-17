@@ -1,208 +1,371 @@
 # ETL Router
 
-A distributed ETL (Extract, Transform, Load) routing system built in Rust with Raft consensus for high availability.
+A distributed, high-availability ETL routing platform built in Rust. Route data through pipelines of sources, transforms, and sinks with automatic service discovery, backpressure handling, and Kubernetes-native deployment.
 
-## Overview
+## What is ETL Router?
 
-ETL Router provides a scalable, fault-tolerant platform for routing data between sources, transforms, and sinks. It uses Raft consensus to ensure consistent state across cluster nodes and supports dynamic service registration, pipeline management, and consumer group coordination.
+ETL Router is a **control plane** for data pipelines. Instead of hardcoding connections between your data services, you define pipelines declaratively and ETL Router handles:
 
-## Architecture
+- **Service Discovery** - Automatically finds and registers your gRPC services
+- **Routing** - Routes records through pipeline stages across pods
+- **Backpressure** - Prevents overload by propagating flow control upstream
+- **High Availability** - Raft consensus ensures no single point of failure
+- **Kubernetes Native** - Deploy with CRDs and manage with `kubectl`
 
+```mermaid
+flowchart LR
+    subgraph sources["Sources"]
+        kafka["Kafka"]
+        s3in["S3"]
+        http["HTTP"]
+    end
+
+    subgraph router["ETL Router"]
+        direction TB
+        r1["Router"]
+        r2["Router"]
+        r3["Router"]
+        r1 <-.->|Raft| r2
+        r2 <-.->|Raft| r3
+    end
+
+    subgraph transforms["Transforms"]
+        filter["Filter"]
+        enrich["Enrich"]
+        mask["Mask PII"]
+    end
+
+    subgraph sinks["Sinks"]
+        s3out["S3"]
+        ch["ClickHouse"]
+        pg["Postgres"]
+    end
+
+    sources --> router
+    router --> transforms
+    transforms --> router
+    router --> sinks
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Sources   │────▶│ ETL Router  │────▶│    Sinks    │
-│ (Kafka, S3) │     │   Cluster   │     │ (S3, gRPC)  │
-└─────────────┘     └─────────────┘     └─────────────┘
-                           │
-                    ┌──────┴──────┐
-                    │ Transforms  │
-                    │(Filter, Map)│
-                    └─────────────┘
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Sidecar Architecture** | Deploy a sidecar in each pod - it discovers local services and handles routing |
+| **Raft Consensus** | 3+ node cluster with automatic leader election and failover |
+| **Pipeline DSL** | Define pipelines in YAML with fan-in, fan-out, and shared stages |
+| **Backpressure** | Credit-based flow control prevents unbounded memory growth |
+| **Dead Letter Queue** | Failed records are captured with full error context for replay |
+| **Kubernetes Operator** | CRDs for `EtlPipeline`, `EtlSource`, `EtlTransform`, `EtlSink` |
+| **Web Dashboard** | Real-time monitoring, pipeline visualization, error inspection |
+| **CLI Tool** | `etlctl` for pipeline management, backup/restore, debugging |
+
+## How It Works
+
+```mermaid
+flowchart TB
+    subgraph pod1["Pod: kafka-source"]
+        sidecar1["Sidecar"]
+        kafka["Kafka Source<br/>(gRPC)"]
+        sidecar1 ---|localhost| kafka
+    end
+
+    subgraph pod2["Pod: filter-transform"]
+        sidecar2["Sidecar"]
+        filter["Filter Transform<br/>(gRPC)"]
+        sidecar2 ---|localhost| filter
+    end
+
+    subgraph pod3["Pod: s3-sink"]
+        sidecar3["Sidecar"]
+        s3["S3 Sink<br/>(gRPC)"]
+        sidecar3 ---|localhost| s3
+    end
+
+    router["Router Cluster"]
+
+    sidecar1 <-->|"1. Register services<br/>2. Get assignments"| router
+    sidecar2 <-->|Register & assign| router
+    sidecar3 <-->|Register & assign| router
+
+    sidecar1 -->|"Records"| sidecar2
+    sidecar2 -->|"Records"| sidecar3
 ```
 
-## Features
-
-- **Raft Consensus** - Distributed state machine for high availability
-- **Service Registry** - Dynamic registration of sources, transforms, and sinks
-- **Pipeline Management** - DAG-based routing with fan-out support
-- **Consumer Groups** - Coordinated consumption with partition assignment
-- **Offset Tracking** - Exactly-once semantics with checkpoint support
-- **Watermarks** - Event-time processing with watermark propagation
-- **GraphQL API** - Query and mutate cluster state
-- **gRPC API** - High-performance service communication
-- **Web Dashboard** - Real-time monitoring and management UI
-
-## Components
-
-| Crate | Description |
-|-------|-------------|
-| `etl-router` | Main application binary |
-| `etl-raft` | Raft consensus implementation |
-| `etl-registry` | Service registry and group coordination |
-| `etl-routing` | DAG-based routing engine |
-| `etl-graphql` | GraphQL API server |
-| `etl-grpc` | gRPC service handlers |
-| `etl-proto` | Protocol buffer definitions |
-| `etl-dsl` | Pipeline DSL and manifest parsing |
-| `etl-buffer` | Backpressure and buffer management |
-| `etl-dlq` | Dead letter queue handling |
-| `etl-metrics` | Prometheus metrics |
-| `etlctl` | CLI tool for cluster management |
+1. **Sidecars register** with the router cluster, reporting their local services
+2. **Router assigns pipeline stages** to sidecars based on what services they have
+3. **Records flow** directly between sidecars (data plane), not through the router
+4. **Backpressure propagates** upstream when any stage is slow
 
 ## Quick Start
 
 ### Prerequisites
 
 - Rust 1.75+
+- Docker (for Kubernetes deployment)
 - Node.js 20+ (for web dashboard)
 
-### Running the Router
+### Run Locally
 
 ```bash
-# Build and run
+# Start the router
 cargo run -p etl-router
 
-# The router starts:
-# - gRPC server on :50051
-# - GraphQL API on :8080/graphql
+# In another terminal, start a sidecar
+cargo run -p etl-sidecar
+
+# Use the CLI
+cargo run -p etlctl -- get pipelines
 ```
 
-### Running the Web Dashboard
+### Deploy to Kubernetes
 
 ```bash
-cd web
-npm install
-npm run db:generate
-npm run db:push
-npm run dev
+# Install CRDs and operator
+kubectl apply -f crates/etl-operator/deploy/crds/crds.yaml
+kubectl apply -k crates/etl-operator/deploy/operator/
 
-# Open http://localhost:5173
+# Create a cluster
+kubectl apply -f - <<EOF
+apiVersion: etl.router/v1
+kind: EtlRouterCluster
+metadata:
+  name: my-cluster
+spec:
+  replicas: 3
+EOF
+
+# Create a pipeline
+kubectl apply -f - <<EOF
+apiVersion: etl.router/v1
+kind: EtlPipeline
+metadata:
+  name: user-analytics
+spec:
+  source: kafka-users
+  steps:
+    - filter-active
+    - mask-pii
+  sink: clickhouse-analytics
+EOF
 ```
 
-### Using etlctl
+### Use the CLI
 
 ```bash
-# Build the CLI
-cargo build -p etlctl
+# Apply manifests
+etlctl apply -f pipelines/
 
-# Apply a pipeline manifest
-./target/debug/etlctl apply -f examples/manifests/pipelines/user-analytics.yaml
+# List resources
+etlctl get pipelines
+etlctl get sources --all-namespaces
 
-# List pipelines
-./target/debug/etlctl get pipelines
+# Visualize pipeline DAG
+etlctl graph -f pipelines/ --format dot | dot -Tpng > pipeline.png
 
-# Describe a service
-./target/debug/etlctl describe service my-source
+# Backup cluster state
+etlctl backup create --dest s3://my-bucket/backups/
+
+# Restore from backup
+etlctl backup restore abc123 --source s3://my-bucket/backups/
 ```
 
-## Configuration
+## Pipeline Definition
 
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GRPC_PORT` | gRPC server port | `50051` |
-| `GRAPHQL_PORT` | GraphQL server port | `8080` |
-| `RAFT_NODE_ID` | Raft node identifier | `1` |
-| `RAFT_PEERS` | Comma-separated peer addresses | - |
-
-### Manifest Example
+Define pipelines using simple YAML manifests:
 
 ```yaml
+# source.yaml
+apiVersion: etl.router/v1
+kind: Source
+metadata:
+  name: kafka-users
+  namespace: default
+spec:
+  grpc:
+    endpoint: kafka-source-svc:50051
+
+# transform.yaml
+apiVersion: etl.router/v1
+kind: Transform
+metadata:
+  name: filter-active
+spec:
+  grpc:
+    endpoint: filter-svc:50051
+
+# pipeline.yaml
 apiVersion: etl.router/v1
 kind: Pipeline
 metadata:
   name: user-analytics
 spec:
-  source:
-    ref: kafka-user-events
-  transforms:
-    - ref: filter-active-users
-    - ref: mask-pii
-  sink:
-    ref: grpc-analytics
-  enabled: true
+  source: kafka-users
+  steps:
+    - filter-active
+    - enrich-geo
+  sink: clickhouse-analytics
+  dlq:
+    enabled: true
+    maxRetries: 3
 ```
+
+## Architecture Overview
+
+```mermaid
+flowchart TB
+    subgraph control["Control Plane"]
+        subgraph raft["Router Cluster"]
+            leader["Leader"]
+            follower1["Follower"]
+            follower2["Follower"]
+        end
+        operator["K8s Operator"]
+    end
+
+    subgraph data["Data Plane"]
+        s1["Sidecar"] --> s2["Sidecar"]
+        s2 --> s3["Sidecar"]
+    end
+
+    operator -->|Reconcile| raft
+    raft -->|Assign stages| data
+
+    cli["etlctl"] --> raft
+    web["Dashboard"] --> raft
+```
+
+For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Project Structure
+
+```
+etl-router/
+├── crates/
+│   ├── etl-router/      # Main router binary
+│   ├── etl-sidecar/     # Pod sidecar binary
+│   ├── etl-operator/    # Kubernetes operator
+│   ├── etlctl/          # CLI tool
+│   ├── etl-raft/        # Raft consensus
+│   ├── etl-grpc/        # gRPC handlers
+│   ├── etl-proto/       # Protocol buffers
+│   ├── etl-registry/    # Service registry
+│   ├── etl-routing/     # Routing engine
+│   ├── etl-dsl/         # Pipeline DSL
+│   ├── etl-buffer/      # Backpressure buffers
+│   ├── etl-dlq/         # Dead letter queue
+│   ├── etl-config/      # Configuration
+│   ├── etl-metrics/     # Prometheus metrics
+│   └── etl-graphql/     # GraphQL API
+└── web/                 # SvelteKit dashboard
+```
+
+## Configuration
+
+### Router Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GRPC_PORT` | gRPC server port | `50051` |
+| `GRAPHQL_PORT` | GraphQL/HTTP port | `8080` |
+| `RAFT_NODE_ID` | Unique node identifier | `1` |
+| `RAFT_PEERS` | Comma-separated peer addresses | - |
+| `DATA_DIR` | Persistent storage path | `./data` |
+
+### Sidecar Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SIDECAR_ID` | Unique sidecar identifier | auto-generated |
+| `CLUSTER_ENDPOINT` | Router cluster address | `etl-router:50051` |
+| `GRPC_PORT` | Sidecar gRPC port | `9091` |
+| `DISCOVERY_PORTS` | Ports to scan for services | `50051-50060` |
 
 ## Web Dashboard
 
-The web dashboard provides:
+The web dashboard provides real-time visibility into your ETL pipelines:
 
-- **Dashboard** - Cluster overview with status cards
-- **Services** - View registered sources, transforms, and sinks
-- **Pipelines** - DAG visualization and pipeline management
-- **Cluster** - Raft cluster state and node information
-- **Metrics** - Real-time throughput and consumer lag monitoring
-- **Admin** - User management (when auth is enabled)
+```bash
+cd web
+npm install
+npm run dev
+# Open http://localhost:5173
+```
 
-See [web/README.md](web/README.md) for detailed setup instructions.
+Features:
+- **Cluster Status** - Node health, leader info, Raft state
+- **Pipeline Topology** - Interactive DAG visualization
+- **Metrics** - Throughput, latency, backpressure indicators
+- **Error Inspector** - View DLQ records, retry failed batches
 
-## API
+## API Reference
 
 ### GraphQL
 
 ```graphql
-# Query cluster status
 query {
   clusterStatus {
-    nodeId
-    role
-    currentTerm
-    leaderId
+    nodes { id role healthy }
+    leader
+  }
+
+  pipelines {
+    id
+    source
+    stages { id endpoint }
+    sink
   }
 }
 
-# List services
-query {
-  services {
-    serviceId
-    serviceType
-    endpoint
-    health
-  }
-}
-
-# Create a pipeline
 mutation {
   createPipeline(input: {
-    pipelineId: "my-pipeline"
-    name: "My Pipeline"
-    config: "..."
+    name: "my-pipeline"
+    source: "kafka-events"
+    steps: ["filter", "enrich"]
+    sink: "s3-archive"
   }) {
     success
-    message
+    pipelineId
   }
 }
 ```
 
 ### gRPC
 
-Protocol buffer definitions are in `crates/etl-proto/proto/`:
+Protocol definitions in `crates/etl-proto/proto/`:
 
-- `registry.proto` - Service registration
-- `source.proto` - Source operations
-- `sink.proto` - Sink operations
-- `transform.proto` - Transform operations
-- `checkpoint.proto` - Offset management
-- `raft.proto` - Raft consensus
+| Proto | Services |
+|-------|----------|
+| `source.proto` | `SourceService` - Pull records from sources |
+| `transform.proto` | `TransformService` - Process record batches |
+| `sink.proto` | `SinkService` - Write records to destinations |
+| `registry.proto` | `ServiceRegistry` - Register/discover services |
+| `sidecar.proto` | `SidecarCoordinator`, `SidecarDataPlane` |
+| `raft.proto` | `RaftService` - Consensus protocol |
 
 ## Testing
 
 ```bash
-# Run Rust tests
+# Run all tests
 cargo nextest run
 
-# Run web E2E tests
-cd web
-npm run test:e2e
+# Run specific crate tests
+cargo nextest run -p etl-raft
+
+# Run with logging
+RUST_LOG=debug cargo nextest run
 ```
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines and submit PRs to the `main` branch.
 
 ## License
 
 Licensed under either of:
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
 
 at your option.
 
