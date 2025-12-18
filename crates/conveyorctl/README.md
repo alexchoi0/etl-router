@@ -165,8 +165,8 @@ spec:
 
 | Variable | Description |
 |----------|-------------|
-| `ETLCTL_SERVER` | Default server address |
-| `ETLCTL_NAMESPACE` | Default namespace |
+| `CONVEYORCTL_SERVER` | Default server address |
+| `CONVEYORCTL_NAMESPACE` | Default namespace |
 | `RUST_LOG` | Log level (debug, info, warn, error) |
 
 ## Examples

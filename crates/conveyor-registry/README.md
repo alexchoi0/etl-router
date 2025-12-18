@@ -4,7 +4,7 @@ Service registry and group coordination.
 
 ## Overview
 
-This crate manages the registration, discovery, and coordination of ETL services. It tracks service health, handles consumer groups, and provides load balancing across service instances.
+This crate manages the registration, discovery, and coordination of data pipeline services. It tracks service health, handles consumer groups, and provides load balancing across service instances.
 
 ## Components
 

@@ -4,7 +4,7 @@ Kubernetes operator for managing Conveyor resources.
 
 ## Overview
 
-The operator watches Custom Resource Definitions (CRDs) and reconciles them with the actual cluster state. It manages the lifecycle of router clusters, pipelines, and ETL services.
+The operator watches Custom Resource Definitions (CRDs) and reconciles them with the actual cluster state. It manages the lifecycle of router clusters, pipelines, and data pipeline services.
 
 ## Custom Resources
 
@@ -57,7 +57,7 @@ spec:
 
 ### EtlSource / EtlTransform / EtlSink
 
-Define individual ETL services.
+Define individual data pipeline services.
 
 ```yaml
 apiVersion: etl.router/v1

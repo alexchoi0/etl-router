@@ -130,8 +130,8 @@ If configuration file is not found or values are missing, sensible defaults are 
 Configuration values can be overridden via environment variables:
 
 ```bash
-ETL_CLUSTER_ELECTION_TIMEOUT_MS=500 \
-ETL_BUFFER_MAX_TOTAL_RECORDS=200000 \
+CONVEYOR_CLUSTER_ELECTION_TIMEOUT_MS=500 \
+CONVEYOR_BUFFER_MAX_TOTAL_RECORDS=200000 \
 cargo run -p conveyor-router
 ```
 

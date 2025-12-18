@@ -4,7 +4,7 @@ Pipeline DSL parsing, validation, and optimization.
 
 ## Overview
 
-This crate handles the YAML manifest format for defining ETL resources. It parses manifests, validates references, converts to internal types, and optimizes pipeline DAGs.
+This crate handles the YAML manifest format for defining pipeline resources. It parses manifests, validates references, converts to internal types, and optimizes pipeline DAGs.
 
 ## Features
 
