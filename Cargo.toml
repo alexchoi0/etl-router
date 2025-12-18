@@ -82,6 +82,7 @@ chrono = { version = "0.4", features = ["serde"] }
 regex = "1"
 clap = { version = "4", features = ["derive"] }
 rand = "0.8"
+dashmap = "6"
 
 # HTTP
 hyper = { version = "1", features = ["server", "http1"] }
