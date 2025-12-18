@@ -12,7 +12,7 @@ This document describes the architecture of the Conveyor system, a distributed d
 │  │                         CONTROL PLANE                                 │  │
 │  │                                                                       │  │
 │  │   ┌─────────────┐    ┌─────────────────────────────────────────────┐  │  │
-│  │   │ ETL Operator│    │         Router Cluster (Raft)               │  │  │
+│  │   │  Operator   │    │         Router Cluster (Raft)               │  │  │
 │  │   └──────┬──────┘    │  ┌────────┐  ┌────────┐  ┌────────┐         │  │  │
 │  │          │           │  │ Leader │◄─┤Follower│◄─┤Follower│         │  │  │
 │  │          └──────────▶│  └────────┘  └────────┘  └────────┘         │  │  │
@@ -297,28 +297,28 @@ BEFORE (Unoptimized)                 AFTER (Optimized)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         CRDs                                │
-│  ┌──────────────────┐  ┌────────────┐  ┌────────────────┐  │
-│  │EtlRouterCluster  │  │EtlPipeline │  │EtlSource       │  │
-│  └────────┬─────────┘  └──────┬─────┘  │EtlTransform    │  │
-│           │                   │        │EtlSink         │  │
-│           │                   │        └───────┬────────┘  │
-└───────────┼───────────────────┼────────────────┼───────────┘
-            │                   │                │
-            ▼                   ▼                ▼
-┌───────────────────────────────────────────────────────────┐
-│                      ETL Operator                         │
-│  ┌──────────────────┐  ┌──────────────┐  ┌────────────┐  │
-│  │Cluster Controller│  │Pipeline Ctrl │  │Resource Ctrl│  │
-│  └────────┬─────────┘  └──────┬───────┘  └────────────┘  │
-└───────────┼───────────────────┼───────────────────────────┘
-            │                   │
-            ▼                   ▼
-    ┌───────────────┐   ┌───────────────┐
-    │ StatefulSet   │   │Router Cluster │
-    │ Services      │   │(Submit pipeline)
-    │ ConfigMaps    │   └───────────────┘
-    └───────────────┘
+│                           CRDs                              │
+│  ┌────────────────┐  ┌────────────┐  ┌──────────────────┐  │
+│  │ RouterCluster  │  │  Pipeline  │  │Source, Transform,│  │
+│  │                │  │            │  │Sink              │  │
+│  └────────────────┘  └────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Conveyor Operator                        │
+│  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │Cluster Controller│  │Pipeline Ctrl │  │Resource Ctrl │  │
+│  └──────────────────┘  └──────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+      ┌───────────────┐               ┌───────────────┐
+      │ StatefulSet   │               │Router Cluster │
+      │ Services      │               │(Submit pipeline)
+      │ ConfigMaps    │               └───────────────┘
+      └───────────────┘
 ```
 
 ### Operator Reconciliation
@@ -326,7 +326,7 @@ BEFORE (Unoptimized)                 AFTER (Optimized)
 ```
 Kubernetes API        Operator         Router Cluster
       │                  │                   │
-      │ EtlPipeline      │                   │
+      │ Pipeline         │                   │
       │ created          │                   │
       ├─────────────────▶│                   │
       │                  │ Validate spec     │
@@ -340,7 +340,7 @@ Kubernetes API        Operator         Router Cluster
       │ Update status:   │                   │
       │ Ready            │                   │
       │                  │                   │
-      │ EtlPipeline      │                   │
+      │ Pipeline         │                   │
       │ deleted          │                   │
       ├─────────────────▶│                   │
       │                  │ DeletePipeline    │
