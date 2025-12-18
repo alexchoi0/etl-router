@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
-use tokio::sync::RwLock;
+
+use dashmap::DashMap;
 use tracing::{debug, warn};
 
 use crate::error::{DlqError, Result};
@@ -57,47 +57,46 @@ impl SinkDlqBuffer {
 }
 
 pub struct DlqManager {
-    buffers: Arc<RwLock<HashMap<String, SinkDlqBuffer>>>,
-    pipeline_to_error_sink: Arc<RwLock<HashMap<String, String>>>,
+    buffers: DashMap<String, SinkDlqBuffer>,
+    pipeline_to_error_sink: DashMap<String, String>,
     default_policy: DlqPolicy,
 }
 
 impl DlqManager {
     pub fn new(default_policy: DlqPolicy) -> Self {
         Self {
-            buffers: Arc::new(RwLock::new(HashMap::new())),
-            pipeline_to_error_sink: Arc::new(RwLock::new(HashMap::new())),
+            buffers: DashMap::new(),
+            pipeline_to_error_sink: DashMap::new(),
             default_policy,
         }
     }
 
     pub async fn register_pipeline(&self, pipeline_id: &str, error_sink_id: &str) {
-        let mut mapping = self.pipeline_to_error_sink.write().await;
-        mapping.insert(pipeline_id.to_string(), error_sink_id.to_string());
+        self.pipeline_to_error_sink
+            .insert(pipeline_id.to_string(), error_sink_id.to_string());
         debug!(pipeline_id, error_sink_id, "Registered pipeline error sink");
     }
 
     pub async fn register_sink(&self, sink_id: &str, policy: Option<DlqPolicy>) {
-        let mut buffers = self.buffers.write().await;
         let policy = policy.unwrap_or_else(|| self.default_policy.clone());
-        buffers.insert(sink_id.to_string(), SinkDlqBuffer::new(policy));
+        self.buffers
+            .insert(sink_id.to_string(), SinkDlqBuffer::new(policy));
         debug!(sink_id, "Registered DLQ sink");
     }
 
     pub async fn send_to_dlq(&self, record: DeadLetterRecord) -> Result<()> {
         let pipeline_id = &record.pipeline_id;
 
-        let mapping = self.pipeline_to_error_sink.read().await;
-        let sink_id = mapping
+        let sink_id = self
+            .pipeline_to_error_sink
             .get(pipeline_id)
+            .map(|r| r.value().clone())
             .ok_or_else(|| DlqError::NoErrorSink {
                 pipeline_id: pipeline_id.clone(),
-            })?
-            .clone();
-        drop(mapping);
+            })?;
 
-        let mut buffers = self.buffers.write().await;
-        let buffer = buffers
+        let mut buffer = self
+            .buffers
             .entry(sink_id.clone())
             .or_insert_with(|| SinkDlqBuffer::new(self.default_policy.clone()));
 
@@ -120,8 +119,7 @@ impl DlqManager {
     }
 
     pub async fn get_batch(&self, sink_id: &str) -> Vec<DeadLetterRecord> {
-        let mut buffers = self.buffers.write().await;
-        if let Some(buffer) = buffers.get_mut(sink_id) {
+        if let Some(mut buffer) = self.buffers.get_mut(sink_id) {
             buffer.drain_batch()
         } else {
             Vec::new()
@@ -129,8 +127,7 @@ impl DlqManager {
     }
 
     pub async fn drain_expired(&self, sink_id: &str) -> Vec<DeadLetterRecord> {
-        let mut buffers = self.buffers.write().await;
-        if let Some(buffer) = buffers.get_mut(sink_id) {
+        if let Some(mut buffer) = self.buffers.get_mut(sink_id) {
             buffer.drain_expired()
         } else {
             Vec::new()
@@ -138,41 +135,40 @@ impl DlqManager {
     }
 
     pub async fn get_buffer_size(&self, sink_id: &str) -> usize {
-        let buffers = self.buffers.read().await;
-        buffers.get(sink_id).map(|b| b.len()).unwrap_or(0)
+        self.buffers.get(sink_id).map(|b| b.len()).unwrap_or(0)
     }
 
     pub async fn get_all_sink_ids(&self) -> Vec<String> {
-        let buffers = self.buffers.read().await;
-        buffers.keys().cloned().collect()
+        self.buffers.iter().map(|e| e.key().clone()).collect()
     }
 
     pub async fn get_stats(&self) -> DlqStats {
-        let buffers = self.buffers.read().await;
         let mut total_records = 0;
         let mut per_sink = HashMap::new();
 
-        for (sink_id, buffer) in buffers.iter() {
-            let len = buffer.len();
+        for entry in self.buffers.iter() {
+            let len = entry.value().len();
             total_records += len;
-            per_sink.insert(sink_id.clone(), len);
+            per_sink.insert(entry.key().clone(), len);
         }
 
         DlqStats {
             total_records,
             per_sink,
-            sink_count: buffers.len(),
+            sink_count: self.buffers.len(),
         }
     }
 
     pub async fn should_retry(&self, record: &DeadLetterRecord) -> bool {
-        let mapping = self.pipeline_to_error_sink.read().await;
-        let Some(sink_id) = mapping.get(&record.pipeline_id) else {
+        let Some(sink_id) = self
+            .pipeline_to_error_sink
+            .get(&record.pipeline_id)
+            .map(|r| r.value().clone())
+        else {
             return false;
         };
 
-        let buffers = self.buffers.read().await;
-        let Some(buffer) = buffers.get(sink_id) else {
+        let Some(buffer) = self.buffers.get(&sink_id) else {
             return self.default_policy.retry.should_retry(record.error.retry_count);
         };
 

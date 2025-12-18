@@ -1,8 +1,7 @@
-use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use tokio::sync::RwLock;
+
+use dashmap::DashMap;
 
 use super::service_registry::RegisteredService;
 
@@ -21,17 +20,17 @@ impl Default for LoadBalanceStrategy {
 }
 
 pub struct LoadBalancer {
-    round_robin_counters: Arc<RwLock<HashMap<String, AtomicUsize>>>,
-    connection_counts: Arc<RwLock<HashMap<String, usize>>>,
-    weights: Arc<RwLock<HashMap<String, u32>>>,
+    round_robin_counters: DashMap<String, AtomicUsize>,
+    connection_counts: DashMap<String, AtomicUsize>,
+    weights: DashMap<String, u32>,
 }
 
 impl LoadBalancer {
     pub fn new() -> Self {
         Self {
-            round_robin_counters: Arc::new(RwLock::new(HashMap::new())),
-            connection_counts: Arc::new(RwLock::new(HashMap::new())),
-            weights: Arc::new(RwLock::new(HashMap::new())),
+            round_robin_counters: DashMap::new(),
+            connection_counts: DashMap::new(),
+            weights: DashMap::new(),
         }
     }
 
@@ -50,16 +49,16 @@ impl LoadBalancer {
         }
 
         match strategy {
-            LoadBalanceStrategy::RoundRobin => self.round_robin(services).await,
-            LoadBalanceStrategy::LeastConnections => self.least_connections(services).await,
-            LoadBalanceStrategy::WeightedRandom => self.weighted_random(services).await,
+            LoadBalanceStrategy::RoundRobin => self.round_robin(services),
+            LoadBalanceStrategy::LeastConnections => self.least_connections(services),
+            LoadBalanceStrategy::WeightedRandom => self.weighted_random(services),
             LoadBalanceStrategy::ConsistentHash => {
-                self.consistent_hash(services, routing_key).await
+                self.consistent_hash(services, routing_key)
             }
         }
     }
 
-    async fn round_robin(&self, services: &[RegisteredService]) -> Option<RegisteredService> {
+    fn round_robin(&self, services: &[RegisteredService]) -> Option<RegisteredService> {
         if services.is_empty() {
             return None;
         }
@@ -69,8 +68,8 @@ impl LoadBalancer {
             .map(|s| s.service_name.clone())
             .unwrap_or_default();
 
-        let mut counters = self.round_robin_counters.write().await;
-        let counter = counters
+        let counter = self
+            .round_robin_counters
             .entry(key)
             .or_insert_with(|| AtomicUsize::new(0));
 
@@ -78,21 +77,20 @@ impl LoadBalancer {
         Some(services[idx].clone())
     }
 
-    async fn least_connections(
-        &self,
-        services: &[RegisteredService],
-    ) -> Option<RegisteredService> {
+    fn least_connections(&self, services: &[RegisteredService]) -> Option<RegisteredService> {
         if services.is_empty() {
             return None;
         }
-
-        let counts = self.connection_counts.read().await;
 
         let mut min_connections = usize::MAX;
         let mut selected = &services[0];
 
         for service in services {
-            let count = counts.get(&service.service_id).copied().unwrap_or(0);
+            let count = self
+                .connection_counts
+                .get(&service.service_id)
+                .map(|c| c.load(Ordering::Relaxed))
+                .unwrap_or(0);
             if count < min_connections {
                 min_connections = count;
                 selected = service;
@@ -102,18 +100,20 @@ impl LoadBalancer {
         Some(selected.clone())
     }
 
-    async fn weighted_random(&self, services: &[RegisteredService]) -> Option<RegisteredService> {
+    fn weighted_random(&self, services: &[RegisteredService]) -> Option<RegisteredService> {
         if services.is_empty() {
             return None;
         }
-
-        let weights = self.weights.read().await;
 
         let mut total_weight: u32 = 0;
         let mut service_weights = Vec::with_capacity(services.len());
 
         for service in services {
-            let weight = weights.get(&service.service_id).copied().unwrap_or(100);
+            let weight = self
+                .weights
+                .get(&service.service_id)
+                .map(|w| *w)
+                .unwrap_or(100);
             total_weight += weight;
             service_weights.push((service, weight));
         }
@@ -135,7 +135,7 @@ impl LoadBalancer {
         Some(services[0].clone())
     }
 
-    async fn consistent_hash(
+    fn consistent_hash(
         &self,
         services: &[RegisteredService],
         routing_key: Option<&str>,
@@ -151,21 +151,21 @@ impl LoadBalancer {
         Some(services[idx].clone())
     }
 
-    pub async fn increment_connections(&self, service_id: &str) {
-        let mut counts = self.connection_counts.write().await;
-        *counts.entry(service_id.to_string()).or_insert(0) += 1;
+    pub fn increment_connections(&self, service_id: &str) {
+        self.connection_counts
+            .entry(service_id.to_string())
+            .or_insert_with(|| AtomicUsize::new(0))
+            .fetch_add(1, Ordering::Relaxed);
     }
 
-    pub async fn decrement_connections(&self, service_id: &str) {
-        let mut counts = self.connection_counts.write().await;
-        if let Some(count) = counts.get_mut(service_id) {
-            *count = count.saturating_sub(1);
+    pub fn decrement_connections(&self, service_id: &str) {
+        if let Some(count) = self.connection_counts.get(service_id) {
+            count.fetch_sub(1, Ordering::Relaxed);
         }
     }
 
-    pub async fn set_weight(&self, service_id: &str, weight: u32) {
-        let mut weights = self.weights.write().await;
-        weights.insert(service_id.to_string(), weight);
+    pub fn set_weight(&self, service_id: &str, weight: u32) {
+        self.weights.insert(service_id.to_string(), weight);
     }
 }
 
