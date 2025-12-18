@@ -151,15 +151,15 @@ if condition.evaluate(&record) {
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  Time Progress                       │
+│                  Time Progress                      │
 │                                                     │
 │  Source 1:  ─────●─────●─────●───────────►          │
-│                  t1    t2    t3                      │
+│                  t1    t2    t3                     │
 │                                                     │
-│  Source 2:  ─────────●───────●─────●────►          │
+│  Source 2:  ─────────●───────●─────●────►           │
 │                      t1      t2    t3               │
 │                                                     │
-│  Combined:  ─────●───●───────●─────●────►          │
+│  Combined:  ─────●───●───────●─────●────►           │
 │             (min of all sources)                    │
 │                                                     │
 │  Late records: timestamp < watermark - lateness     │

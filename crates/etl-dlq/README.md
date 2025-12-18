@@ -107,31 +107,31 @@ pub enum RetryPolicy {
 ## Retry Flow
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Record Flow                       │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  Record ──► Stage ──► Success ──► Next Stage        │
-│               │                                     │
-│               ▼                                     │
-│            Failure                                  │
-│               │                                     │
-│               ▼                                     │
-│         DlqManager                                  │
-│               │                                     │
-│      ┌────────┴────────┐                           │
-│      ▼                 ▼                           │
-│  retry_count      retry_count                      │
-│    < max            >= max                         │
-│      │                 │                           │
-│      ▼                 ▼                           │
-│  Schedule          Send to                         │
-│   Retry           Error Sink                       │
-│      │                                             │
-│      ▼                                             │
-│  Back to Stage                                     │
-│                                                    │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│                   Record Flow                   │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  Record ──► Stage ──► Success ──► Next Stage    │
+│               │                                 │
+│               ▼                                 │
+│            Failure                              │
+│               │                                 │
+│               ▼                                 │
+│         DlqManager                              │
+│               │                                 │
+│      ┌────────┴────────┐                        │
+│      ▼                 ▼                        │
+│  retry_count      retry_count                   │
+│    < max            >= max                      │
+│      │                 │                        │
+│      ▼                 ▼                        │
+│  Schedule          Send to                      │
+│   Retry           Error Sink                    │
+│      │                                          │
+│      ▼                                          │
+│  Back to Stage                                  │
+│                                                 │
+└─────────────────────────────────────────────────┘
 ```
 
 ## Backoff Calculation
