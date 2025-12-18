@@ -1,0 +1,50 @@
+[package]
+name = "conveyor-sidecar"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Conveyor sidecar for local and cross-pod data routing"
+
+[[bin]]
+name = "conveyor-sidecar"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace internal crates
+conveyor-proto.workspace = true
+conveyor-routing.workspace = true
+conveyor-buffer.workspace = true
+
+# Async runtime
+tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+
+# gRPC
+tonic.workspace = true
+tonic-reflection = "0.12"
+prost.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Observability
+tracing.workspace = true
+tracing-subscriber.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Utils
+clap.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+dashmap.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

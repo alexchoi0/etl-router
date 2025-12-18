@@ -1,6 +1,6 @@
-# ETL Router Web Dashboard
+# Conveyor Web Dashboard
 
-A SvelteKit web application for monitoring and managing the ETL Router cluster.
+A SvelteKit web application for monitoring and managing the Conveyor cluster.
 
 ## Features
 
@@ -25,7 +25,7 @@ A SvelteKit web application for monitoring and managing the ETL Router cluster.
 ## Prerequisites
 
 - Node.js 20+
-- ETL Router GraphQL API running at `http://localhost:8080/graphql`
+- Conveyor GraphQL API running at `http://localhost:8080/graphql`
 
 ## Getting Started
 
@@ -142,7 +142,7 @@ For production, use PostgreSQL:
 
 2. Update `.env`:
    ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/etl_router"
+   DATABASE_URL="postgresql://user:password@localhost:5432/conveyor_router"
    ```
 
 3. Regenerate and push:
@@ -202,7 +202,7 @@ GitHub Actions workflow (`.github/workflows/web-e2e.yml`) runs tests on push/PR 
 
 ## GraphQL API
 
-The dashboard connects to the ETL Router GraphQL API. Key queries:
+The dashboard connects to the Conveyor GraphQL API. Key queries:
 
 - `clusterStatus` - Raft cluster state
 - `services` - Registered services

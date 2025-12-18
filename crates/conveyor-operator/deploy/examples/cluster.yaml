@@ -1,0 +1,40 @@
+apiVersion: conveyor.router/v1
+kind: EtlRouterCluster
+metadata:
+  name: my-cluster
+  namespace: default
+spec:
+  replicas: 3  # minimum 3 for Raft consensus
+  image: conveyor-router:latest
+  storage:
+    storageClass: standard
+    size: 10Gi
+  service:
+    grpcPort: 50051
+    raftPort: 50052
+    graphqlPort: 8080
+  raft:
+    heartbeatIntervalMs: 100
+    electionTimeoutMs: 1000
+    snapshotInterval: 10000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "etl"
+      effect: "NoSchedule"
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: conveyor-router
+          topologyKey: kubernetes.io/hostname

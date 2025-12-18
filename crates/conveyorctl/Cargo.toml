@@ -1,0 +1,46 @@
+[package]
+name = "conveyorctl"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "CLI tool for managing Conveyor resources"
+
+[[bin]]
+name = "conveyorctl"
+path = "src/main.rs"
+
+[dependencies]
+conveyor-dsl.workspace = true
+conveyor-proto.workspace = true
+
+clap.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tonic.workspace = true
+
+# HTTP client for API calls
+reqwest = { version = "0.12", features = ["json"] }
+
+# Table output
+tabled = "0.17"
+
+# Compression
+tar.workspace = true
+flate2.workspace = true
+zstd.workspace = true
+
+# Cloud storage
+aws-config = "1"
+aws-sdk-s3 = "1"
+google-cloud-storage = "0.22"

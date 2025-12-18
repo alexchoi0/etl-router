@@ -1,45 +1,45 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/etl-proto",
-    "crates/etl-config",
-    "crates/etl-raft",
-    "crates/etl-registry",
-    "crates/etl-buffer",
-    "crates/etl-routing",
-    "crates/etl-metrics",
-    "crates/etl-grpc",
-    "crates/etl-graphql",
-    "crates/etl-dsl",
-    "crates/etl-dlq",
-    "crates/etl-router",
-    "crates/etlctl",
-    "crates/etl-operator",
-    "crates/etl-sidecar",
+    "crates/conveyor-proto",
+    "crates/conveyor-config",
+    "crates/conveyor-raft",
+    "crates/conveyor-registry",
+    "crates/conveyor-buffer",
+    "crates/conveyor-routing",
+    "crates/conveyor-metrics",
+    "crates/conveyor-grpc",
+    "crates/conveyor-graphql",
+    "crates/conveyor-dsl",
+    "crates/conveyor-dlq",
+    "crates/conveyor-router",
+    "crates/conveyorctl",
+    "crates/conveyor-operator",
+    "crates/conveyor-sidecar",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["ETL Router Team"]
+authors = ["Conveyor Team"]
 license = "MIT"
 
 [workspace.dependencies]
 # Internal crates
-etl-proto = { path = "crates/etl-proto" }
-etl-config = { path = "crates/etl-config" }
-etl-raft = { path = "crates/etl-raft" }
-etl-registry = { path = "crates/etl-registry" }
-etl-buffer = { path = "crates/etl-buffer" }
-etl-routing = { path = "crates/etl-routing" }
-etl-metrics = { path = "crates/etl-metrics" }
-etl-grpc = { path = "crates/etl-grpc" }
-etl-graphql = { path = "crates/etl-graphql" }
-etl-dsl = { path = "crates/etl-dsl" }
-etl-dlq = { path = "crates/etl-dlq" }
-etlctl = { path = "crates/etlctl" }
-etl-operator = { path = "crates/etl-operator" }
-etl-sidecar = { path = "crates/etl-sidecar" }
+conveyor-proto = { path = "crates/conveyor-proto" }
+conveyor-config = { path = "crates/conveyor-config" }
+conveyor-raft = { path = "crates/conveyor-raft" }
+conveyor-registry = { path = "crates/conveyor-registry" }
+conveyor-buffer = { path = "crates/conveyor-buffer" }
+conveyor-routing = { path = "crates/conveyor-routing" }
+conveyor-metrics = { path = "crates/conveyor-metrics" }
+conveyor-grpc = { path = "crates/conveyor-grpc" }
+conveyor-graphql = { path = "crates/conveyor-graphql" }
+conveyor-dsl = { path = "crates/conveyor-dsl" }
+conveyor-dlq = { path = "crates/conveyor-dlq" }
+conveyorctl = { path = "crates/conveyorctl" }
+conveyor-operator = { path = "crates/conveyor-operator" }
+conveyor-sidecar = { path = "crates/conveyor-sidecar" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

@@ -1,0 +1,30 @@
+[package]
+name = "conveyor-raft"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Raft consensus implementation for Conveyor"
+
+[dependencies]
+conveyor-proto.workspace = true
+conveyor-config.workspace = true
+
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+rocksdb.workspace = true
+serde.workspace = true
+bincode.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+rand.workspace = true
+uuid.workspace = true
+tar.workspace = true
+flate2.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

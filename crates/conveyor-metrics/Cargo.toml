@@ -1,0 +1,18 @@
+[package]
+name = "conveyor-metrics"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Metrics collection and export for Conveyor"
+
+[dependencies]
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
+tracing.workspace = true
+bytes.workspace = true

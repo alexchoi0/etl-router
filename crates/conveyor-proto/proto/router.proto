@@ -1,0 +1,229 @@
+syntax = "proto3";
+
+package conveyor.router;
+
+import "common.proto";
+import "google/protobuf/timestamp.proto";
+
+service RouterAdmin {
+  rpc CreatePipeline(CreatePipelineRequest) returns (CreatePipelineResponse);
+  rpc UpdatePipeline(UpdatePipelineRequest) returns (UpdatePipelineResponse);
+  rpc DeletePipeline(DeletePipelineRequest) returns (DeletePipelineResponse);
+  rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse);
+  rpc ListPipelines(ListPipelinesRequest) returns (ListPipelinesResponse);
+  rpc EnablePipeline(EnablePipelineRequest) returns (EnablePipelineResponse);
+  rpc DisablePipeline(DisablePipelineRequest) returns (DisablePipelineResponse);
+  rpc GetClusterStatus(GetClusterStatusRequest) returns (GetClusterStatusResponse);
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+}
+
+message PipelineConfig {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated Stage stages = 4;
+  repeated Edge edges = 5;
+  bool enabled = 6;
+  map<string, string> metadata = 7;
+}
+
+message Stage {
+  string id = 1;
+  string name = 2;
+  StageType stage_type = 3;
+  ServiceSelector service_selector = 4;
+  repeated RoutingRule routing_rules = 5;
+  uint32 parallelism = 6;
+}
+
+enum StageType {
+  STAGE_TYPE_UNSPECIFIED = 0;
+  STAGE_TYPE_SOURCE = 1;
+  STAGE_TYPE_TRANSFORM = 2;
+  STAGE_TYPE_SINK = 3;
+}
+
+message ServiceSelector {
+  string service_name = 1;
+  string group_id = 2;
+  map<string, string> labels = 3;
+  LoadBalanceStrategy load_balance = 4;
+}
+
+enum LoadBalanceStrategy {
+  LOAD_BALANCE_UNSPECIFIED = 0;
+  LOAD_BALANCE_ROUND_ROBIN = 1;
+  LOAD_BALANCE_LEAST_CONNECTIONS = 2;
+  LOAD_BALANCE_WEIGHTED_RANDOM = 3;
+  LOAD_BALANCE_CONSISTENT_HASH = 4;
+}
+
+message RoutingRule {
+  string name = 1;
+  Condition condition = 2;
+  repeated string target_stages = 3;
+  uint32 priority = 4;
+}
+
+message Condition {
+  oneof condition {
+    string always = 1;
+    string record_type = 2;
+    MetadataMatch metadata_match = 3;
+    string expression = 4;
+    AndCondition and = 5;
+    OrCondition or = 6;
+    NotCondition not = 7;
+  }
+}
+
+message MetadataMatch {
+  string key = 1;
+  string pattern = 2;
+}
+
+message AndCondition {
+  repeated Condition conditions = 1;
+}
+
+message OrCondition {
+  repeated Condition conditions = 1;
+}
+
+message NotCondition {
+  Condition condition = 1;
+}
+
+message Edge {
+  string from_stage = 1;
+  string to_stage = 2;
+  Condition condition = 3;
+}
+
+message CreatePipelineRequest {
+  PipelineConfig config = 1;
+}
+
+message CreatePipelineResponse {
+  bool success = 1;
+  string pipeline_id = 2;
+  string error = 3;
+}
+
+message UpdatePipelineRequest {
+  string pipeline_id = 1;
+  PipelineConfig config = 2;
+}
+
+message UpdatePipelineResponse {
+  bool success = 1;
+  uint64 version = 2;
+  string error = 3;
+}
+
+message DeletePipelineRequest {
+  string pipeline_id = 1;
+  bool force = 2;
+}
+
+message DeletePipelineResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetPipelineRequest {
+  string pipeline_id = 1;
+}
+
+message GetPipelineResponse {
+  bool found = 1;
+  PipelineConfig config = 2;
+  PipelineStatus status = 3;
+}
+
+message PipelineStatus {
+  bool enabled = 1;
+  uint64 version = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  map<string, StageStatus> stage_statuses = 5;
+}
+
+message StageStatus {
+  uint64 records_processed = 1;
+  uint64 records_buffered = 2;
+  uint64 errors = 3;
+  float avg_latency_ms = 4;
+}
+
+message ListPipelinesRequest {
+  bool include_disabled = 1;
+}
+
+message ListPipelinesResponse {
+  repeated PipelineConfig pipelines = 1;
+}
+
+message EnablePipelineRequest {
+  string pipeline_id = 1;
+}
+
+message EnablePipelineResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message DisablePipelineRequest {
+  string pipeline_id = 1;
+  bool drain = 2;
+}
+
+message DisablePipelineResponse {
+  bool success = 1;
+  uint64 pending_records = 2;
+  string error = 3;
+}
+
+message GetClusterStatusRequest {}
+
+message GetClusterStatusResponse {
+  uint64 node_id = 1;
+  uint64 leader_id = 2;
+  uint64 term = 3;
+  uint64 commit_index = 4;
+  uint64 applied_index = 5;
+  repeated NodeStatus nodes = 6;
+  ClusterHealth health = 7;
+}
+
+message NodeStatus {
+  uint64 node_id = 1;
+  string address = 2;
+  NodeRole role = 3;
+  bool healthy = 4;
+  uint64 match_index = 5;
+  google.protobuf.Timestamp last_contact = 6;
+}
+
+enum NodeRole {
+  NODE_ROLE_UNSPECIFIED = 0;
+  NODE_ROLE_LEADER = 1;
+  NODE_ROLE_FOLLOWER = 2;
+  NODE_ROLE_CANDIDATE = 3;
+  NODE_ROLE_LEARNER = 4;
+}
+
+enum ClusterHealth {
+  CLUSTER_HEALTH_UNSPECIFIED = 0;
+  CLUSTER_HEALTH_HEALTHY = 1;
+  CLUSTER_HEALTH_DEGRADED = 2;
+  CLUSTER_HEALTH_UNHEALTHY = 3;
+}
+
+message GetMetricsRequest {
+  repeated string metric_names = 1;
+}
+
+message GetMetricsResponse {
+  map<string, double> metrics = 1;
+}

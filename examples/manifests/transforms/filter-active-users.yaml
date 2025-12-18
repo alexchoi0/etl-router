@@ -1,4 +1,4 @@
-apiVersion: etl.router/v1
+apiVersion: conveyor.router/v1
 kind: Transform
 metadata:
   name: filter-active-users

@@ -1,10 +1,10 @@
-# ETL Router
+# Conveyor
 
-A distributed, high-availability ETL routing platform built in Rust. Route data through pipelines of sources, transforms, and sinks with automatic service discovery, backpressure handling, and Kubernetes-native deployment.
+A distributed, high-availability Conveyor platform built in Rust. Route data through pipelines of sources, transforms, and sinks with automatic service discovery, backpressure handling, and Kubernetes-native deployment.
 
-## What is ETL Router?
+## What is Conveyor?
 
-ETL Router is a **control plane** for data pipelines. Instead of hardcoding connections between your data services, you define pipelines declaratively and ETL Router handles:
+Conveyor is a **control plane** for data pipelines. Instead of hardcoding connections between your data services, you define pipelines declaratively and Conveyor handles:
 
 - **Service Discovery** - Automatically finds and registers your gRPC services
 - **Routing** - Routes records through pipeline stages across pods
@@ -54,7 +54,7 @@ ETL Router is a **control plane** for data pipelines. Instead of hardcoding conn
 | **Dead Letter Queue** | Failed records are captured with full error context for replay |
 | **Kubernetes Operator** | CRDs for `EtlPipeline`, `EtlSource`, `EtlTransform`, `EtlSink` |
 | **Web Dashboard** | Real-time monitoring, pipeline visualization, error inspection |
-| **CLI Tool** | `etlctl` for pipeline management, backup/restore, debugging |
+| **CLI Tool** | `conveyorctl` for pipeline management, backup/restore, debugging |
 
 ## How It Works
 
@@ -91,21 +91,21 @@ ETL Router is a **control plane** for data pipelines. Instead of hardcoding conn
 
 ```bash
 # Start the router
-cargo run -p etl-router
+cargo run -p conveyor-router
 
 # In another terminal, start a sidecar
-cargo run -p etl-sidecar
+cargo run -p conveyor-sidecar
 
 # Use the CLI
-cargo run -p etlctl -- get pipelines
+cargo run -p conveyorctl -- get pipelines
 ```
 
 ### Deploy to Kubernetes
 
 ```bash
 # Install CRDs and operator
-kubectl apply -f crates/etl-operator/deploy/crds/crds.yaml
-kubectl apply -k crates/etl-operator/deploy/operator/
+kubectl apply -f crates/conveyor-operator/deploy/crds/crds.yaml
+kubectl apply -k crates/conveyor-operator/deploy/operator/
 
 # Create a cluster
 kubectl apply -f - <<EOF
@@ -136,20 +136,20 @@ EOF
 
 ```bash
 # Apply manifests
-etlctl apply -f pipelines/
+conveyorctl apply -f pipelines/
 
 # List resources
-etlctl get pipelines
-etlctl get sources --all-namespaces
+conveyorctl get pipelines
+conveyorctl get sources --all-namespaces
 
 # Visualize pipeline DAG
-etlctl graph -f pipelines/ --format dot | dot -Tpng > pipeline.png
+conveyorctl graph -f pipelines/ --format dot | dot -Tpng > pipeline.png
 
 # Backup cluster state
-etlctl backup create --dest s3://my-bucket/backups/
+conveyorctl backup create --dest s3://my-bucket/backups/
 
 # Restore from backup
-etlctl backup restore abc123 --source s3://my-bucket/backups/
+conveyorctl backup restore abc123 --source s3://my-bucket/backups/
 ```
 
 ## Pipeline Definition
@@ -195,11 +195,11 @@ spec:
 ## Architecture Overview
 
 ```
-                    ┌──────────┐  ┌───────────┐
-                    │  etlctl  │  │ Dashboard │
-                    └────┬─────┘  └─────┬─────┘
-                         │              │
-                         ▼              ▼
+                    ┌───────────────┐  ┌───────────┐
+                    │  conveyorctl  │  │ Dashboard │
+                    └────┬──────────┘  └─────┬─────┘
+                         │                   │
+                         ▼                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  CONTROL PLANE                                              │
 │  ┌──────────────────────────────────────────────────────┐   │
@@ -225,23 +225,23 @@ For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 ## Project Structure
 
 ```
-etl-router/
+conveyor-router/
 ├── crates/
-│   ├── etl-router/      # Main router binary
-│   ├── etl-sidecar/     # Pod sidecar binary
-│   ├── etl-operator/    # Kubernetes operator
-│   ├── etlctl/          # CLI tool
-│   ├── etl-raft/        # Raft consensus
-│   ├── etl-grpc/        # gRPC handlers
-│   ├── etl-proto/       # Protocol buffers
-│   ├── etl-registry/    # Service registry
-│   ├── etl-routing/     # Routing engine
-│   ├── etl-dsl/         # Pipeline DSL
-│   ├── etl-buffer/      # Backpressure buffers
-│   ├── etl-dlq/         # Dead letter queue
-│   ├── etl-config/      # Configuration
-│   ├── etl-metrics/     # Prometheus metrics
-│   └── etl-graphql/     # GraphQL API
+│   ├── conveyor-router/      # Main router binary
+│   ├── conveyor-sidecar/     # Pod sidecar binary
+│   ├── conveyor-operator/    # Kubernetes operator
+│   ├── conveyorctl/          # CLI tool
+│   ├── conveyor-raft/        # Raft consensus
+│   ├── conveyor-grpc/        # gRPC handlers
+│   ├── conveyor-proto/       # Protocol buffers
+│   ├── conveyor-registry/    # Service registry
+│   ├── conveyor-routing/     # Routing engine
+│   ├── conveyor-dsl/         # Pipeline DSL
+│   ├── conveyor-buffer/      # Backpressure buffers
+│   ├── conveyor-dlq/         # Dead letter queue
+│   ├── conveyor-config/      # Configuration
+│   ├── conveyor-metrics/     # Prometheus metrics
+│   └── conveyor-graphql/     # GraphQL API
 └── web/                 # SvelteKit dashboard
 ```
 
@@ -262,13 +262,13 @@ etl-router/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SIDECAR_ID` | Unique sidecar identifier | auto-generated |
-| `CLUSTER_ENDPOINT` | Router cluster address | `etl-router:50051` |
+| `CLUSTER_ENDPOINT` | Router cluster address | `conveyor-router:50051` |
 | `GRPC_PORT` | Sidecar gRPC port | `9091` |
 | `DISCOVERY_PORTS` | Ports to scan for services | `50051-50060` |
 
 ## Web Dashboard
 
-The web dashboard provides real-time visibility into your ETL pipelines:
+The web dashboard provides real-time visibility into your Conveyor pipelines:
 
 ```bash
 cd web
@@ -317,7 +317,7 @@ mutation {
 
 ### gRPC
 
-Protocol definitions in `crates/etl-proto/proto/`:
+Protocol definitions in `crates/conveyor-proto/proto/`:
 
 | Proto | Services |
 |-------|----------|
@@ -335,7 +335,7 @@ Protocol definitions in `crates/etl-proto/proto/`:
 cargo nextest run
 
 # Run specific crate tests
-cargo nextest run -p etl-raft
+cargo nextest run -p conveyor-raft
 
 # Run with logging
 RUST_LOG=debug cargo nextest run

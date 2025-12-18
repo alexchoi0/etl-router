@@ -1,4 +1,4 @@
-apiVersion: etl.router/v1
+apiVersion: conveyor.router/v1
 kind: Source
 metadata:
   name: kafka-user-events
@@ -13,4 +13,4 @@ spec:
     brokers:
       - kafka:9092
     topic: user-events
-    consumerGroup: etl-router
+    consumerGroup: conveyor-router

@@ -1,0 +1,13 @@
+[package]
+name = "conveyor-config"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Configuration management for Conveyor"
+
+[dependencies]
+config.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+tracing.workspace = true

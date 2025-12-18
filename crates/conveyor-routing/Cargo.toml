@@ -1,0 +1,19 @@
+[package]
+name = "conveyor-routing"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Routing engine and pipeline management for Conveyor"
+
+[dependencies]
+conveyor-proto.workspace = true
+conveyor-registry.workspace = true
+
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+regex.workspace = true
+parking_lot.workspace = true
+anyhow.workspace = true

@@ -1,0 +1,52 @@
+[package]
+name = "conveyor-operator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Kubernetes operator for Conveyor"
+
+[[bin]]
+name = "conveyor-operator"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace internal crates
+conveyor-proto.workspace = true
+conveyor-dsl.workspace = true
+
+# Kubernetes
+kube.workspace = true
+k8s-openapi.workspace = true
+schemars.workspace = true
+futures.workspace = true
+
+# Async runtime
+tokio.workspace = true
+tokio-stream.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+
+# Observability
+tracing.workspace = true
+tracing-subscriber.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Utils
+chrono.workspace = true
+clap.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

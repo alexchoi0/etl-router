@@ -1,4 +1,4 @@
-apiVersion: etl.router/v1
+apiVersion: conveyor.router/v1
 kind: Sink
 metadata:
   name: error-handler

@@ -1,0 +1,28 @@
+[package]
+name = "conveyor-grpc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "gRPC handlers and server for Conveyor"
+
+[dependencies]
+conveyor-proto.workspace = true
+conveyor-config.workspace = true
+conveyor-raft.workspace = true
+conveyor-registry.workspace = true
+conveyor-buffer.workspace = true
+conveyor-routing.workspace = true
+conveyor-graphql.workspace = true
+
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+async-stream.workspace = true
+uuid.workspace = true
+chrono.workspace = true

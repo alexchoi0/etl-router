@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package conveyor.backup;
+
+service BackupService {
+  rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse);
+  rpc StreamSnapshot(StreamSnapshotRequest) returns (stream DataChunk);
+  rpc DeleteSnapshot(DeleteSnapshotRequest) returns (DeleteSnapshotResponse);
+  rpc UploadSnapshot(stream DataChunk) returns (UploadSnapshotResponse);
+  rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
+  rpc GetStateMetadata(GetStateMetadataRequest) returns (StateMetadata);
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+}
+
+message CreateSnapshotRequest {
+  string snapshot_id = 1;
+}
+
+message CreateSnapshotResponse {
+  string snapshot_id = 1;
+  uint64 size_bytes = 2;
+  uint64 commit_index = 3;
+  uint64 term = 4;
+  uint64 timestamp = 5;
+}
+
+message StreamSnapshotRequest {
+  string snapshot_id = 1;
+  CompressionType compression = 2;
+}
+
+enum CompressionType {
+  COMPRESSION_NONE = 0;
+  COMPRESSION_GZIP = 1;
+  COMPRESSION_ZSTD = 2;
+}
+
+message DataChunk {
+  bytes data = 1;
+  uint64 offset = 2;
+  bool is_last = 3;
+}
+
+message DeleteSnapshotRequest {
+  string snapshot_id = 1;
+}
+
+message DeleteSnapshotResponse {
+  bool success = 1;
+}
+
+message UploadSnapshotResponse {
+  bool success = 1;
+  string snapshot_id = 2;
+}
+
+message RestoreSnapshotRequest {
+  string snapshot_id = 1;
+  bool validate_only = 2;
+}
+
+message RestoreSnapshotResponse {
+  bool success = 1;
+  string message = 2;
+  StateMetadata state = 3;
+}
+
+message GetStateMetadataRequest {}
+
+message StateMetadata {
+  uint64 commit_index = 1;
+  uint64 term = 2;
+  uint32 service_count = 3;
+  uint32 pipeline_count = 4;
+  string version = 5;
+}
+
+message ListSnapshotsRequest {}
+
+message ListSnapshotsResponse {
+  repeated SnapshotInfo snapshots = 1;
+}
+
+message SnapshotInfo {
+  string snapshot_id = 1;
+  uint64 size_bytes = 2;
+  uint64 commit_index = 3;
+  uint64 term = 4;
+  uint64 created_at = 5;
+}

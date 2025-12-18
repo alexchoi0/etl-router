@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package conveyor.lookup;
+
+import "common.proto";
+
+service LookupService {
+  rpc Lookup(LookupRequest) returns (LookupResponse);
+  rpc BatchLookup(BatchLookupRequest) returns (BatchLookupResponse);
+  rpc GetCapabilities(conveyor.common.Empty) returns (Capabilities);
+}
+
+message LookupRequest {
+  string lookup_id = 1;
+  conveyor.common.Record input_record = 2;
+  repeated string key_fields = 3;
+}
+
+message LookupResponse {
+  conveyor.common.RecordId original_id = 1;
+  LookupStatus status = 2;
+  map<string, bytes> lookup_data = 3;
+  string error_message = 4;
+  uint64 latency_us = 5;
+}
+
+enum LookupStatus {
+  LOOKUP_STATUS_UNSPECIFIED = 0;
+  LOOKUP_STATUS_FOUND = 1;
+  LOOKUP_STATUS_NOT_FOUND = 2;
+  LOOKUP_STATUS_ERROR = 3;
+  LOOKUP_STATUS_TIMEOUT = 4;
+}
+
+message BatchLookupRequest {
+  string lookup_id = 1;
+  repeated conveyor.common.Record records = 2;
+  repeated string key_fields = 3;
+}
+
+message BatchLookupResponse {
+  string batch_id = 1;
+  repeated LookupResponse results = 2;
+  BatchStats stats = 3;
+}
+
+message BatchStats {
+  uint32 found = 1;
+  uint32 not_found = 2;
+  uint32 errors = 3;
+  uint64 avg_latency_us = 4;
+}
+
+message Capabilities {
+  string lookup_id = 1;
+  repeated string supported_key_types = 2;
+  bool supports_batch = 3;
+  uint32 max_batch_size = 4;
+  uint64 avg_latency_us = 5;
+}
