@@ -16,7 +16,7 @@ Conveyor is a **control plane** for data pipelines. Instead of hardcoding connec
 ┌───────────────────────────────────────────────────────────────┐
 │                        CONTROL PLANE                          │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │              Router Cluster (Raft Consensus)            │  │
+│  │            Conveyor Cluster (Raft Consensus)            │  │
 │  │         ┌──────────┐ ┌──────────┐ ┌──────────┐          │  │
 │  │         │  Leader  │ │ Follower │ │ Follower │          │  │
 │  │         └────┬─────┘ └────┬─────┘ └────┬─────┘          │  │
