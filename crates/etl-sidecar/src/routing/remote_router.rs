@@ -47,12 +47,12 @@ impl RemoteRouter {
         Ok(response.success)
     }
 
-    pub async fn remove_client(&self, endpoint: &str) {
-        self.sidecar_clients.remove(endpoint).await;
+    pub fn remove_client(&self, endpoint: &str) {
+        self.sidecar_clients.remove(endpoint);
     }
 
-    pub async fn clear_clients(&self) {
-        self.sidecar_clients.clear().await;
+    pub fn clear_clients(&self) {
+        self.sidecar_clients.clear();
     }
 }
 
