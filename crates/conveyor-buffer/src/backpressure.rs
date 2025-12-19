@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackpressureSignal {
@@ -10,7 +8,7 @@ pub enum BackpressureSignal {
 }
 
 pub struct BackpressureController {
-    source_states: Arc<RwLock<HashMap<String, SourceBackpressureState>>>,
+    source_states: DashMap<String, SourceBackpressureState>,
     high_watermark: f64,
     low_watermark: f64,
 }
@@ -24,15 +22,14 @@ struct SourceBackpressureState {
 impl BackpressureController {
     pub fn new(high_watermark: f64, low_watermark: f64) -> Self {
         Self {
-            source_states: Arc::new(RwLock::new(HashMap::new())),
+            source_states: DashMap::new(),
             high_watermark,
             low_watermark,
         }
     }
 
     pub async fn compute_signal(&self, source_id: &str, utilization: f64) -> BackpressureSignal {
-        let mut states = self.source_states.write().await;
-        let state = states
+        let mut state = self.source_states
             .entry(source_id.to_string())
             .or_insert_with(|| SourceBackpressureState {
                 current_signal: BackpressureSignal::None,
@@ -58,8 +55,7 @@ impl BackpressureController {
     }
 
     pub async fn grant_credits(&self, source_id: &str, credits: u64) {
-        let mut states = self.source_states.write().await;
-        let state = states
+        let mut state = self.source_states
             .entry(source_id.to_string())
             .or_insert_with(|| SourceBackpressureState {
                 current_signal: BackpressureSignal::None,
@@ -70,31 +66,27 @@ impl BackpressureController {
     }
 
     pub async fn use_credits(&self, source_id: &str, credits: u64) {
-        let mut states = self.source_states.write().await;
-        if let Some(state) = states.get_mut(source_id) {
+        if let Some(mut state) = self.source_states.get_mut(source_id) {
             state.credits_used += credits;
         }
     }
 
     pub async fn get_available_credits(&self, source_id: &str) -> u64 {
-        let states = self.source_states.read().await;
-        states
+        self.source_states
             .get(source_id)
             .map(|s| s.credits_granted.saturating_sub(s.credits_used))
             .unwrap_or(0)
     }
 
     pub async fn get_current_signal(&self, source_id: &str) -> BackpressureSignal {
-        let states = self.source_states.read().await;
-        states
+        self.source_states
             .get(source_id)
             .map(|s| s.current_signal)
             .unwrap_or(BackpressureSignal::None)
     }
 
     pub async fn reset_credits(&self, source_id: &str) {
-        let mut states = self.source_states.write().await;
-        if let Some(state) = states.get_mut(source_id) {
+        if let Some(mut state) = self.source_states.get_mut(source_id) {
             state.credits_granted = 0;
             state.credits_used = 0;
         }

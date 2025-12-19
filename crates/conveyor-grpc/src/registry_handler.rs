@@ -6,6 +6,8 @@ use tokio_stream::Stream;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::info;
 
+use crate::error::{IntoStatus, ResultExt};
+
 use conveyor_proto::registry::{
     service_registry_server::ServiceRegistry as ServiceRegistryTrait,
     RegisterRequest, RegisterResponse,
@@ -18,7 +20,7 @@ use conveyor_proto::registry::{
     LeaveGroupRequest, LeaveGroupResponse,
     ServiceHealth as ProtoServiceHealth, ServiceMetadata,
 };
-use conveyor_proto::common::{Endpoint, ServiceIdentity, ServiceType as ProtoServiceType, HealthStatus};
+use conveyor_proto::common::{Endpoint, ServiceIdentity, HealthStatus};
 use conveyor_raft::RaftNode;
 use conveyor_registry::{ServiceRegistry, ServiceType};
 
@@ -37,14 +39,6 @@ impl ServiceRegistryImpl {
     }
 }
 
-fn proto_to_service_type(proto: i32) -> ServiceType {
-    match ProtoServiceType::try_from(proto) {
-        Ok(ProtoServiceType::Source) => ServiceType::Source,
-        Ok(ProtoServiceType::Transform) => ServiceType::Transform,
-        Ok(ProtoServiceType::Sink) => ServiceType::Sink,
-        _ => ServiceType::Source,
-    }
-}
 
 type HeartbeatStream = Pin<Box<dyn Stream<Item = Result<HeartbeatResponse, Status>> + Send>>;
 type WatchServicesStream = Pin<Box<dyn Stream<Item = Result<ServiceEvent, Status>> + Send>>;
@@ -69,7 +63,7 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
         );
 
         let endpoint_str = format!("{}:{}", endpoint.host, endpoint.port);
-        let service_type = proto_to_service_type(identity.service_type);
+        let service_type = ServiceType::from_proto(identity.service_type);
 
         let labels: HashMap<String, String> = req.metadata
             .map(|m| m.labels)
@@ -102,9 +96,7 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
                     initial_credits: 10000,
                 }))
             }
-            Err(e) => {
-                Err(Status::internal(e.to_string()))
-            }
+            Err(e) => Err(e.into_status()),
         }
     }
 
@@ -117,17 +109,11 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
         info!(service_id = %req.service_id, "Deregistering service");
 
         let registry = self.registry.write().await;
-        match registry.deregister(&req.service_id).await {
-            Ok(()) => {
-                Ok(Response::new(DeregisterResponse {
-                    success: true,
-                    pending_records: 0,
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(e.to_string()))
-            }
-        }
+        registry.deregister(&req.service_id).await.map_to_status()?;
+        Ok(Response::new(DeregisterResponse {
+            success: true,
+            pending_records: 0,
+        }))
     }
 
     async fn heartbeat(
@@ -176,11 +162,7 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
             ProtoRegisteredService {
                 identity: Some(ServiceIdentity {
                     service_id: s.service_id.clone(),
-                    service_type: match s.service_type {
-                        ServiceType::Source => ProtoServiceType::Source as i32,
-                        ServiceType::Transform => ProtoServiceType::Transform as i32,
-                        ServiceType::Sink => ProtoServiceType::Sink as i32,
-                    },
+                    service_type: s.service_type.to_proto(),
                     name: s.service_name.clone(),
                     version: String::new(),
                     capabilities: Vec::new(),

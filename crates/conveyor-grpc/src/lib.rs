@@ -1,3 +1,4 @@
+pub mod error;
 pub mod server;
 pub mod source_handler;
 pub mod transform_client;
@@ -9,5 +10,6 @@ pub mod sidecar_handler;
 #[cfg(test)]
 mod tests;
 
+pub use error::{IntoStatus, ResultExt};
 pub use server::RouterServer;
 pub use sidecar_handler::SidecarCoordinatorImpl;

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
+use dashmap::DashMap;
 use tokio::sync::RwLock;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
@@ -20,14 +20,14 @@ type ResponseStream = Pin<Box<dyn Stream<Item = Result<PipelineAssignmentEvent, 
 
 pub struct SidecarCoordinatorImpl {
     raft_node: Arc<RwLock<RaftNode>>,
-    pending_assignments: Arc<RwLock<HashMap<String, Vec<PipelineAssignment>>>>,
+    pending_assignments: DashMap<String, Vec<PipelineAssignment>>,
 }
 
 impl SidecarCoordinatorImpl {
     pub fn new(raft_node: Arc<RwLock<RaftNode>>) -> Self {
         Self {
             raft_node,
-            pending_assignments: Arc::new(RwLock::new(HashMap::new())),
+            pending_assignments: DashMap::new(),
         }
     }
 
@@ -189,17 +189,17 @@ impl SidecarCoordinator for SidecarCoordinatorImpl {
             }
         }
 
-        let commands = {
-            let mut pending = self.pending_assignments.write().await;
-            pending
-                .remove(&req.sidecar_id)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|assignment| SidecarCommand {
-                    command: Some(sidecar_command::Command::Assign(assignment)),
-                })
-                .collect()
-        };
+        let commands = self.pending_assignments
+            .remove(&req.sidecar_id)
+            .map(|(_, assignments)| {
+                assignments
+                    .into_iter()
+                    .map(|assignment| SidecarCommand {
+                        command: Some(sidecar_command::Command::Assign(assignment)),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         Ok(Response::new(HeartbeatResponse {
             acknowledged: true,

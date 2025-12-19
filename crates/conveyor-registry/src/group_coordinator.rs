@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
 use anyhow::Result;
 use tracing::info;
 use serde::{Deserialize, Serialize};
@@ -60,13 +59,13 @@ pub enum RebalanceEvent {
 }
 
 pub struct GroupCoordinator {
-    groups: Arc<RwLock<HashMap<String, ServiceGroup>>>,
+    groups: DashMap<String, ServiceGroup>,
 }
 
 impl GroupCoordinator {
     pub fn new() -> Self {
         Self {
-            groups: Arc::new(RwLock::new(HashMap::new())),
+            groups: DashMap::new(),
         }
     }
 
@@ -76,14 +75,12 @@ impl GroupCoordinator {
         stage_id: String,
         total_partitions: u32,
     ) -> Result<()> {
-        let mut groups = self.groups.write().await;
-
-        if groups.contains_key(&group_id) {
+        if self.groups.contains_key(&group_id) {
             return Err(anyhow::anyhow!("Group already exists: {}", group_id));
         }
 
         let group = ServiceGroup::new(group_id.clone(), stage_id, total_partitions);
-        groups.insert(group_id.clone(), group);
+        self.groups.insert(group_id.clone(), group);
 
         info!(group_id = %group_id, "Group created");
         Ok(())
@@ -94,9 +91,7 @@ impl GroupCoordinator {
         group_id: &str,
         service_id: String,
     ) -> Result<Vec<RebalanceEvent>> {
-        let mut groups = self.groups.write().await;
-
-        let group = groups
+        let mut group = self.groups
             .get_mut(group_id)
             .ok_or_else(|| anyhow::anyhow!("Group not found: {}", group_id))?;
 
@@ -122,7 +117,7 @@ impl GroupCoordinator {
 
         info!(group_id = %group_id, service_id = %service_id, "Member joined group");
 
-        self.compute_rebalance(group)
+        self.compute_rebalance(&mut group)
     }
 
     pub async fn leave_group(
@@ -130,9 +125,7 @@ impl GroupCoordinator {
         group_id: &str,
         service_id: &str,
     ) -> Result<Vec<RebalanceEvent>> {
-        let mut groups = self.groups.write().await;
-
-        let group = groups
+        let mut group = self.groups
             .get_mut(group_id)
             .ok_or_else(|| anyhow::anyhow!("Group not found: {}", group_id))?;
 
@@ -150,7 +143,7 @@ impl GroupCoordinator {
 
         info!(group_id = %group_id, service_id = %service_id, "Member left group");
 
-        self.compute_rebalance(group)
+        self.compute_rebalance(&mut group)
     }
 
     fn compute_rebalance(&self, group: &mut ServiceGroup) -> Result<Vec<RebalanceEvent>> {
@@ -254,9 +247,7 @@ impl GroupCoordinator {
     }
 
     pub async fn get_assignment(&self, group_id: &str, service_id: &str) -> Option<Vec<u32>> {
-        let groups = self.groups.read().await;
-
-        groups.get(group_id).and_then(|g| {
+        self.groups.get(group_id).and_then(|g| {
             g.members
                 .get(service_id)
                 .map(|m| m.assigned_partitions.clone())
@@ -264,21 +255,17 @@ impl GroupCoordinator {
     }
 
     pub async fn get_group(&self, group_id: &str) -> Option<ServiceGroup> {
-        let groups = self.groups.read().await;
-        groups.get(group_id).cloned()
+        self.groups.get(group_id).map(|g| g.clone())
     }
 
     pub async fn get_partition_owner(&self, group_id: &str, partition: u32) -> Option<String> {
-        let groups = self.groups.read().await;
-        groups
+        self.groups
             .get(group_id)
             .and_then(|g| g.partition_assignment.get(&partition).cloned())
     }
 
     pub async fn heartbeat(&self, group_id: &str, service_id: &str) -> Result<()> {
-        let mut groups = self.groups.write().await;
-
-        let group = groups
+        let mut group = self.groups
             .get_mut(group_id)
             .ok_or_else(|| anyhow::anyhow!("Group not found: {}", group_id))?;
 
@@ -292,8 +279,7 @@ impl GroupCoordinator {
     }
 
     pub async fn list_groups(&self) -> Vec<String> {
-        let groups = self.groups.read().await;
-        groups.keys().cloned().collect()
+        self.groups.iter().map(|r| r.key().clone()).collect()
     }
 }
 

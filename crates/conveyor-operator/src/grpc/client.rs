@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
 use tonic::transport::Channel;
 
 use conveyor_proto::router::{
@@ -16,20 +15,18 @@ use crate::crd::Pipeline;
 
 #[derive(Clone)]
 pub struct RouterClient {
-    connections: Arc<RwLock<HashMap<String, RouterAdminClient<Channel>>>>,
+    connections: DashMap<String, RouterAdminClient<Channel>>,
 }
 
 impl RouterClient {
     pub fn new() -> Self {
         Self {
-            connections: Arc::new(RwLock::new(HashMap::new())),
+            connections: DashMap::new(),
         }
     }
 
     pub async fn connect(&self, endpoint: &str) -> Result<RouterConnection> {
-        let mut conns = self.connections.write().await;
-
-        if let Some(client) = conns.get(endpoint) {
+        if let Some(client) = self.connections.get(endpoint) {
             return Ok(RouterConnection {
                 client: client.clone(),
             });
@@ -41,14 +38,13 @@ impl RouterClient {
             .await?;
 
         let client = RouterAdminClient::new(channel);
-        conns.insert(endpoint.to_string(), client.clone());
+        self.connections.insert(endpoint.to_string(), client.clone());
 
         Ok(RouterConnection { client })
     }
 
     pub async fn disconnect(&self, endpoint: &str) {
-        let mut conns = self.connections.write().await;
-        conns.remove(endpoint);
+        self.connections.remove(endpoint);
     }
 }
 

@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
 
 use super::NodeId;
 
@@ -11,7 +9,7 @@ pub struct PeerNode {
 }
 
 pub struct RaftNetwork {
-    peers: Arc<RwLock<HashMap<NodeId, PeerNode>>>,
+    peers: DashMap<NodeId, PeerNode>,
     #[allow(dead_code)]
     local_id: NodeId,
 }
@@ -19,29 +17,25 @@ pub struct RaftNetwork {
 impl RaftNetwork {
     pub fn new(local_id: NodeId) -> Self {
         Self {
-            peers: Arc::new(RwLock::new(HashMap::new())),
+            peers: DashMap::new(),
             local_id,
         }
     }
 
     pub async fn add_peer(&self, id: NodeId, addr: String) {
-        let mut peers = self.peers.write().await;
-        peers.insert(id, PeerNode { id, addr });
+        self.peers.insert(id, PeerNode { id, addr });
     }
 
     pub async fn remove_peer(&self, id: NodeId) {
-        let mut peers = self.peers.write().await;
-        peers.remove(&id);
+        self.peers.remove(&id);
     }
 
     pub async fn get_peer(&self, id: NodeId) -> Option<PeerNode> {
-        let peers = self.peers.read().await;
-        peers.get(&id).cloned()
+        self.peers.get(&id).map(|r| r.clone())
     }
 
     pub async fn list_peers(&self) -> Vec<PeerNode> {
-        let peers = self.peers.read().await;
-        peers.values().cloned().collect()
+        self.peers.iter().map(|r| r.clone()).collect()
     }
 }
 

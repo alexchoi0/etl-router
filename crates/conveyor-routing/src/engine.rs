@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
 use anyhow::Result;
 
 use super::dag::{
@@ -26,36 +25,31 @@ pub enum LookupResult {
 }
 
 pub struct RoutingEngine {
-    pipelines: Arc<RwLock<HashMap<String, Pipeline>>>,
+    pipelines: DashMap<String, Pipeline>,
 }
 
 impl RoutingEngine {
     pub fn new() -> Self {
         Self {
-            pipelines: Arc::new(RwLock::new(HashMap::new())),
+            pipelines: DashMap::new(),
         }
     }
 
     pub async fn add_pipeline(&self, pipeline: Pipeline) {
         let pipeline_id = pipeline.id.clone();
-
-        let mut pipelines = self.pipelines.write().await;
-        pipelines.insert(pipeline_id, pipeline);
+        self.pipelines.insert(pipeline_id, pipeline);
     }
 
     pub async fn remove_pipeline(&self, pipeline_id: &str) {
-        let mut pipelines = self.pipelines.write().await;
-        pipelines.remove(pipeline_id);
+        self.pipelines.remove(pipeline_id);
     }
 
     pub async fn get_pipeline(&self, pipeline_id: &str) -> Option<Pipeline> {
-        let pipelines = self.pipelines.read().await;
-        pipelines.get(pipeline_id).cloned()
+        self.pipelines.get(pipeline_id).map(|p| p.clone())
     }
 
     pub async fn list_pipelines(&self) -> Vec<Pipeline> {
-        let pipelines = self.pipelines.read().await;
-        pipelines.values().cloned().collect()
+        self.pipelines.iter().map(|r| r.clone()).collect()
     }
 
     pub async fn route_batch(
@@ -64,9 +58,7 @@ impl RoutingEngine {
         source_stage_id: &str,
         batch: RecordBatch,
     ) -> Result<Vec<RoutingDecision>> {
-        let pipelines = self.pipelines.read().await;
-
-        let pipeline = pipelines
+        let pipeline = self.pipelines
             .get(pipeline_id)
             .ok_or_else(|| anyhow::anyhow!("Pipeline not found: {}", pipeline_id))?;
 
@@ -74,7 +66,6 @@ impl RoutingEngine {
             return Err(anyhow::anyhow!("Pipeline is disabled: {}", pipeline_id));
         }
 
-        // Linear pipeline: find the next stage in the edge list
         let next_stage = pipeline
             .edges
             .iter()
@@ -86,47 +77,40 @@ impl RoutingEngine {
                 target_stage_id,
                 records: batch.records,
             }]),
-            None => Ok(vec![]), // No downstream stage (end of pipeline)
+            None => Ok(vec![]),
         }
     }
 
     pub async fn find_pipelines_for_source(&self, source_service_name: &str) -> Vec<String> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .iter()
-            .filter(|(_, p)| {
+            .filter(|r| {
+                let p = r.value();
                 p.enabled && p.stages.values().any(|s| {
                     s.stage_type == StageType::Source
                         && s.service_selector.service_name.as_deref() == Some(source_service_name)
                 })
             })
-            .map(|(id, _)| id.clone())
+            .map(|r| r.key().clone())
             .collect()
     }
 
     pub async fn get_source_stages(&self, pipeline_id: &str) -> Vec<Stage> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
             .map(|p| p.get_source_stages().into_iter().cloned().collect())
             .unwrap_or_default()
     }
 
     pub async fn get_sink_stages(&self, pipeline_id: &str) -> Vec<Stage> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
             .map(|p| p.get_sink_stages().into_iter().cloned().collect())
             .unwrap_or_default()
     }
 
     pub async fn get_lookup_stages(&self, pipeline_id: &str) -> Vec<Stage> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
             .map(|p| p.get_lookup_stages().into_iter().cloned().collect())
             .unwrap_or_default()
@@ -137,12 +121,9 @@ impl RoutingEngine {
         pipeline_id: &str,
         stage_id: &str,
     ) -> Option<LookupConfig> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
-            .and_then(|p| p.stages.get(stage_id))
-            .and_then(|s| s.lookup_config.clone())
+            .and_then(|p| p.stages.get(stage_id).and_then(|s| s.lookup_config.clone()))
     }
 
     pub fn merge_lookup_result(
@@ -214,9 +195,7 @@ impl RoutingEngine {
     }
 
     pub async fn get_fan_in_stages(&self, pipeline_id: &str) -> Vec<Stage> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
             .map(|p| {
                 p.stages
@@ -229,9 +208,7 @@ impl RoutingEngine {
     }
 
     pub async fn get_fan_out_stages(&self, pipeline_id: &str) -> Vec<Stage> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
             .map(|p| {
                 p.stages
@@ -248,12 +225,9 @@ impl RoutingEngine {
         pipeline_id: &str,
         stage_id: &str,
     ) -> Option<FanInConfig> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
-            .and_then(|p| p.stages.get(stage_id))
-            .and_then(|s| s.fan_in_config.clone())
+            .and_then(|p| p.stages.get(stage_id).and_then(|s| s.fan_in_config.clone()))
     }
 
     pub async fn get_fan_out_config(
@@ -261,12 +235,9 @@ impl RoutingEngine {
         pipeline_id: &str,
         stage_id: &str,
     ) -> Option<FanOutConfig> {
-        let pipelines = self.pipelines.read().await;
-
-        pipelines
+        self.pipelines
             .get(pipeline_id)
-            .and_then(|p| p.stages.get(stage_id))
-            .and_then(|s| s.fan_out_config.clone())
+            .and_then(|p| p.stages.get(stage_id).and_then(|s| s.fan_out_config.clone()))
     }
 
     pub fn create_watermark_tracker_for_fan_in(

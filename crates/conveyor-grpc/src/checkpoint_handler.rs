@@ -4,6 +4,8 @@ use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::{info, debug};
 
+use crate::error::ResultExt;
+
 use conveyor_proto::checkpoint::{
     checkpoint_service_server::CheckpointService,
     CommitOffsetRequest, CommitOffsetResponse,
@@ -45,10 +47,10 @@ impl CheckpointService for CheckpointServiceImpl {
         );
 
         let node = self.raft_node.write().await;
-        match node.commit_source_offset(&req.source_id, req.partition, req.offset).await {
-            Ok(()) => Ok(Response::new(CommitOffsetResponse { success: true })),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
+        node.commit_source_offset(&req.source_id, req.partition, req.offset)
+            .await
+            .map_to_status()?;
+        Ok(Response::new(CommitOffsetResponse { success: true }))
     }
 
     async fn get_source_offset(
@@ -81,13 +83,11 @@ impl CheckpointService for CheckpointServiceImpl {
         );
 
         let node = self.raft_node.write().await;
-        match node.advance_watermark(&watermark).await {
-            Ok(global) => Ok(Response::new(WatermarkResponse {
-                accepted: true,
-                current_global_watermark: Some(global),
-            })),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
+        let global = node.advance_watermark(&watermark).await.map_to_status()?;
+        Ok(Response::new(WatermarkResponse {
+            accepted: true,
+            current_global_watermark: Some(global),
+        }))
     }
 
     async fn get_watermark(
@@ -127,14 +127,14 @@ impl CheckpointService for CheckpointServiceImpl {
             .collect();
 
         let node = self.raft_node.write().await;
-        match node.save_service_checkpoint(&req.service_id, &req.checkpoint_id, &req.data, &source_offsets).await {
-            Ok(created_at) => Ok(Response::new(SaveCheckpointResponse {
-                success: true,
-                checkpoint_id: req.checkpoint_id,
-                created_at: Some(created_at),
-            })),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
+        let created_at = node.save_service_checkpoint(&req.service_id, &req.checkpoint_id, &req.data, &source_offsets)
+            .await
+            .map_to_status()?;
+        Ok(Response::new(SaveCheckpointResponse {
+            success: true,
+            checkpoint_id: req.checkpoint_id,
+            created_at: Some(created_at),
+        }))
     }
 
     async fn get_checkpoint(
@@ -206,10 +206,10 @@ impl CheckpointService for CheckpointServiceImpl {
         );
 
         let node = self.raft_node.write().await;
-        match node.commit_group_offset(&req.group_id, &req.source_id, req.partition, req.offset).await {
-            Ok(()) => Ok(Response::new(CommitGroupOffsetResponse { success: true })),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
+        node.commit_group_offset(&req.group_id, &req.source_id, req.partition, req.offset)
+            .await
+            .map_to_status()?;
+        Ok(Response::new(CommitGroupOffsetResponse { success: true }))
     }
 
     async fn get_pipeline_checkpoints(
