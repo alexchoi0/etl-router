@@ -1,7 +1,18 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use super::matcher::Condition;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PipelineValidationError {
+    CycleDetected { path: Vec<String> },
+    DisconnectedStage { stage_id: String },
+    UnreachableFromSource { stage_id: String },
+    CannotReachSink { stage_id: String },
+    MissingStage { stage_id: String },
+    NoSourceStages,
+    NoSinkStages,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
@@ -218,5 +229,221 @@ impl Pipeline {
             .filter(|e| e.to_stage == stage_id)
             .filter_map(|e| self.stages.get(&e.from_stage))
             .collect()
+    }
+
+    pub fn validate(&self) -> Result<(), Vec<PipelineValidationError>> {
+        let mut errors = Vec::new();
+
+        for edge in &self.edges {
+            if !self.stages.contains_key(&edge.from_stage) {
+                errors.push(PipelineValidationError::MissingStage {
+                    stage_id: edge.from_stage.clone(),
+                });
+            }
+            if !self.stages.contains_key(&edge.to_stage) {
+                errors.push(PipelineValidationError::MissingStage {
+                    stage_id: edge.to_stage.clone(),
+                });
+            }
+        }
+
+        if let Some(cycle_path) = self.detect_cycle() {
+            errors.push(PipelineValidationError::CycleDetected { path: cycle_path });
+        }
+
+        let source_stages = self.get_source_stages();
+        if source_stages.is_empty() {
+            errors.push(PipelineValidationError::NoSourceStages);
+        }
+
+        let sink_stages = self.get_sink_stages();
+        if sink_stages.is_empty() {
+            errors.push(PipelineValidationError::NoSinkStages);
+        }
+
+        let reachable_from_sources = self.get_reachable_from_sources();
+        let can_reach_sinks = self.get_stages_that_can_reach_sinks();
+
+        for stage_id in self.stages.keys() {
+            if !reachable_from_sources.contains(stage_id) {
+                let stage = self.stages.get(stage_id).unwrap();
+                if stage.stage_type != StageType::Source {
+                    errors.push(PipelineValidationError::UnreachableFromSource {
+                        stage_id: stage_id.clone(),
+                    });
+                }
+            }
+
+            if !can_reach_sinks.contains(stage_id) {
+                let stage = self.stages.get(stage_id).unwrap();
+                if stage.stage_type != StageType::Sink {
+                    errors.push(PipelineValidationError::CannotReachSink {
+                        stage_id: stage_id.clone(),
+                    });
+                }
+            }
+
+            let has_incoming = self.edges.iter().any(|e| e.to_stage == *stage_id);
+            let has_outgoing = self.edges.iter().any(|e| e.from_stage == *stage_id);
+            let stage = self.stages.get(stage_id).unwrap();
+
+            let is_disconnected = match stage.stage_type {
+                StageType::Source => !has_outgoing,
+                StageType::Sink => !has_incoming,
+                _ => !has_incoming && !has_outgoing,
+            };
+
+            if is_disconnected {
+                errors.push(PipelineValidationError::DisconnectedStage {
+                    stage_id: stage_id.clone(),
+                });
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    pub fn detect_cycle(&self) -> Option<Vec<String>> {
+        let adjacency: HashMap<&str, Vec<&str>> = {
+            let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+            for edge in &self.edges {
+                adj.entry(edge.from_stage.as_str())
+                    .or_default()
+                    .push(edge.to_stage.as_str());
+            }
+            adj
+        };
+
+        let mut visited: HashSet<&str> = HashSet::new();
+        let mut rec_stack: HashSet<&str> = HashSet::new();
+        let mut path: Vec<&str> = Vec::new();
+
+        for stage_id in self.stages.keys() {
+            if !visited.contains(stage_id.as_str()) {
+                if let Some(cycle) = self.dfs_detect_cycle(
+                    stage_id.as_str(),
+                    &adjacency,
+                    &mut visited,
+                    &mut rec_stack,
+                    &mut path,
+                ) {
+                    return Some(cycle);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn dfs_detect_cycle<'a>(
+        &self,
+        node: &'a str,
+        adjacency: &HashMap<&str, Vec<&'a str>>,
+        visited: &mut HashSet<&'a str>,
+        rec_stack: &mut HashSet<&'a str>,
+        path: &mut Vec<&'a str>,
+    ) -> Option<Vec<String>> {
+        visited.insert(node);
+        rec_stack.insert(node);
+        path.push(node);
+
+        if let Some(neighbors) = adjacency.get(node) {
+            for &neighbor in neighbors {
+                if !visited.contains(neighbor) {
+                    if let Some(cycle) =
+                        self.dfs_detect_cycle(neighbor, adjacency, visited, rec_stack, path)
+                    {
+                        return Some(cycle);
+                    }
+                } else if rec_stack.contains(neighbor) {
+                    let cycle_start = path.iter().position(|&n| n == neighbor).unwrap();
+                    let mut cycle: Vec<String> =
+                        path[cycle_start..].iter().map(|s| s.to_string()).collect();
+                    cycle.push(neighbor.to_string());
+                    return Some(cycle);
+                }
+            }
+        }
+
+        path.pop();
+        rec_stack.remove(node);
+        None
+    }
+
+    fn get_reachable_from_sources(&self) -> HashSet<String> {
+        let mut reachable = HashSet::new();
+        let adjacency: HashMap<&str, Vec<&str>> = {
+            let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+            for edge in &self.edges {
+                adj.entry(edge.from_stage.as_str())
+                    .or_default()
+                    .push(edge.to_stage.as_str());
+            }
+            adj
+        };
+
+        for stage in self.get_source_stages() {
+            self.dfs_reachable(&stage.id, &adjacency, &mut reachable);
+        }
+
+        reachable
+    }
+
+    fn dfs_reachable(
+        &self,
+        node: &str,
+        adjacency: &HashMap<&str, Vec<&str>>,
+        reachable: &mut HashSet<String>,
+    ) {
+        if reachable.contains(node) {
+            return;
+        }
+        reachable.insert(node.to_string());
+
+        if let Some(neighbors) = adjacency.get(node) {
+            for neighbor in neighbors {
+                self.dfs_reachable(neighbor, adjacency, reachable);
+            }
+        }
+    }
+
+    fn get_stages_that_can_reach_sinks(&self) -> HashSet<String> {
+        let mut can_reach = HashSet::new();
+        let reverse_adjacency: HashMap<&str, Vec<&str>> = {
+            let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+            for edge in &self.edges {
+                adj.entry(edge.to_stage.as_str())
+                    .or_default()
+                    .push(edge.from_stage.as_str());
+            }
+            adj
+        };
+
+        for stage in self.get_sink_stages() {
+            self.dfs_reachable(&stage.id, &reverse_adjacency, &mut can_reach);
+        }
+
+        can_reach
+    }
+
+    pub fn has_cycle(&self) -> bool {
+        self.detect_cycle().is_some()
+    }
+
+    pub fn get_disconnected_stages(&self) -> Vec<String> {
+        match self.validate() {
+            Ok(()) => Vec::new(),
+            Err(errors) => errors
+                .into_iter()
+                .filter_map(|e| match e {
+                    PipelineValidationError::DisconnectedStage { stage_id } => Some(stage_id),
+                    _ => None,
+                })
+                .collect(),
+        }
     }
 }

@@ -10,7 +10,6 @@ use conveyor_raft::{RaftNode, NodeId};
 use conveyor_registry::ServiceRegistry;
 use conveyor_buffer::BufferManager;
 use conveyor_routing::RoutingEngine;
-use conveyor_graphql::GraphQLServer;
 
 use conveyor_proto::source::source_router_server::SourceRouterServer;
 use conveyor_proto::registry::service_registry_server::ServiceRegistryServer;
@@ -26,7 +25,6 @@ pub struct RouterServer {
     node_id: u64,
     listen_addr: SocketAddr,
     raft_addr: SocketAddr,
-    graphql_addr: SocketAddr,
     peers: Vec<String>,
     data_dir: String,
     settings: Settings,
@@ -37,7 +35,6 @@ impl RouterServer {
         node_id: u64,
         listen_addr: SocketAddr,
         raft_addr: SocketAddr,
-        graphql_addr: SocketAddr,
         peers: Vec<String>,
         data_dir: String,
         settings: Settings,
@@ -46,7 +43,6 @@ impl RouterServer {
             node_id,
             listen_addr,
             raft_addr,
-            graphql_addr,
             peers,
             data_dir,
             settings,
@@ -132,13 +128,6 @@ impl RouterServer {
             }
         });
 
-        let graphql_server = GraphQLServer::new(self.graphql_addr, raft_node.clone());
-        let graphql_handle = tokio::spawn(async move {
-            if let Err(e) = graphql_server.run().await {
-                error!("GraphQL server error: {}", e);
-            }
-        });
-
         info!("Starting main gRPC server on {}...", self.listen_addr);
 
         let main_server = Server::builder()
@@ -156,9 +145,6 @@ impl RouterServer {
             }
             _ = raft_server => {
                 info!("Raft server stopped");
-            }
-            _ = graphql_handle => {
-                info!("GraphQL server stopped");
             }
         }
 

@@ -58,6 +58,17 @@ impl RaftNode {
         })
     }
 
+    #[doc(hidden)]
+    pub fn from_core(id: NodeId, core: Arc<RaftCore>) -> Self {
+        let transport = Arc::new(RaftTransport::new(core.clone(), HashMap::new()));
+        Self {
+            id,
+            core,
+            transport,
+            shutdown_tx: None,
+        }
+    }
+
     pub fn transport(&self) -> Arc<RaftTransport> {
         self.transport.clone()
     }

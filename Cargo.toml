@@ -9,7 +9,6 @@ members = [
     "crates/conveyor-routing",
     "crates/conveyor-metrics",
     "crates/conveyor-grpc",
-    "crates/conveyor-graphql",
     "crates/conveyor-dsl",
     "crates/conveyor-dlq",
     "crates/conveyor-router",
@@ -34,7 +33,6 @@ conveyor-buffer = { path = "crates/conveyor-buffer" }
 conveyor-routing = { path = "crates/conveyor-routing" }
 conveyor-metrics = { path = "crates/conveyor-metrics" }
 conveyor-grpc = { path = "crates/conveyor-grpc" }
-conveyor-graphql = { path = "crates/conveyor-graphql" }
 conveyor-dsl = { path = "crates/conveyor-dsl" }
 conveyor-dlq = { path = "crates/conveyor-dlq" }
 conveyorctl = { path = "crates/conveyorctl" }
@@ -89,12 +87,6 @@ hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 
-# GraphQL
-async-graphql = { version = "7", features = ["chrono"] }
-async-graphql-axum = "7"
-axum = "0.8"
-tower = "0.5"
-tower-http = { version = "0.6", features = ["cors"] }
 
 # Compression
 tar = "0.4"

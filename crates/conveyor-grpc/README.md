@@ -19,7 +19,6 @@ let server = RouterServer::new(
     node_id,
     grpc_addr,
     raft_addr,
-    graphql_addr,
     peers,
     data_dir,
     settings,

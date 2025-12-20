@@ -19,9 +19,6 @@ struct Args {
     #[arg(long, default_value = "127.0.0.1:50052")]
     raft_addr: String,
 
-    #[arg(long, default_value = "127.0.0.1:8080")]
-    graphql_addr: String,
-
     #[arg(long)]
     peers: Vec<String>,
 
@@ -43,7 +40,6 @@ async fn main() -> Result<()> {
         node_id = args.node_id,
         listen_addr = %args.listen_addr,
         raft_addr = %args.raft_addr,
-        graphql_addr = %args.graphql_addr,
         "Starting ETL Router"
     );
 
@@ -53,7 +49,6 @@ async fn main() -> Result<()> {
         args.node_id,
         args.listen_addr.parse()?,
         args.raft_addr.parse()?,
-        args.graphql_addr.parse()?,
         args.peers,
         args.data_dir,
         settings,

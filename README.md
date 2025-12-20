@@ -53,7 +53,6 @@ Conveyor is a **control plane** for data pipelines. Instead of hardcoding connec
 | **Backpressure** | Credit-based flow control prevents unbounded memory growth |
 | **Dead Letter Queue** | Failed records are captured with full error context for replay |
 | **Kubernetes Operator** | CRDs for `Pipeline`, `Source`, `Transform`, `Sink` |
-| **Web Dashboard** | Real-time monitoring, pipeline visualization, error inspection |
 | **CLI Tool** | `conveyorctl` for pipeline management, backup/restore, debugging |
 
 ## How It Works
@@ -85,7 +84,6 @@ Conveyor is a **control plane** for data pipelines. Instead of hardcoding connec
 
 - Rust 1.75+
 - Docker (for Kubernetes deployment)
-- Node.js 20+ (for web dashboard)
 
 ### Run Locally
 
@@ -196,11 +194,11 @@ spec:
 ## Architecture Overview
 
 ```
-                    ┌───────────────┐  ┌───────────┐
-                    │  conveyorctl  │  │ Dashboard │
-                    └────┬──────────┘  └─────┬─────┘
-                         │                   │
-                         ▼                   ▼
+                         ┌───────────────┐
+                         │  conveyorctl  │
+                         └────┬──────────┘
+                              │
+                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │  CONTROL PLANE                                                   │
 │  ┌───────────────────────────────────────────────────────────┐   │
@@ -241,9 +239,7 @@ conveyor-router/
 │   ├── conveyor-buffer/      # Backpressure buffers
 │   ├── conveyor-dlq/         # Dead letter queue
 │   ├── conveyor-config/      # Configuration
-│   ├── conveyor-metrics/     # Prometheus metrics
-│   └── conveyor-graphql/     # GraphQL API
-└── web/                 # SvelteKit dashboard
+│   └── conveyor-metrics/     # Prometheus metrics
 ```
 
 ## Configuration
@@ -253,7 +249,6 @@ conveyor-router/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `GRPC_PORT` | gRPC server port | `50051` |
-| `GRAPHQL_PORT` | GraphQL/HTTP port | `8080` |
 | `RAFT_NODE_ID` | Unique node identifier | `1` |
 | `RAFT_PEERS` | Comma-separated peer addresses | - |
 | `DATA_DIR` | Persistent storage path | `./data` |
@@ -267,54 +262,7 @@ conveyor-router/
 | `GRPC_PORT` | Sidecar gRPC port | `9091` |
 | `DISCOVERY_PORTS` | Ports to scan for services | `50051-50060` |
 
-## Web Dashboard
-
-The web dashboard provides real-time visibility into your Conveyor pipelines:
-
-```bash
-cd web
-npm install
-npm run dev
-# Open http://localhost:5173
-```
-
-Features:
-- **Cluster Status** - Node health, leader info, Raft state
-- **Pipeline Topology** - Interactive DAG visualization
-- **Metrics** - Throughput, latency, backpressure indicators
-- **Error Inspector** - View DLQ records, retry failed batches
-
 ## API Reference
-
-### GraphQL
-
-```graphql
-query {
-  clusterStatus {
-    nodes { id role healthy }
-    leader
-  }
-
-  pipelines {
-    id
-    source
-    stages { id endpoint }
-    sink
-  }
-}
-
-mutation {
-  createPipeline(input: {
-    name: "my-pipeline"
-    source: "kafka-events"
-    steps: ["filter", "enrich"]
-    sink: "s3-archive"
-  }) {
-    success
-    pipelineId
-  }
-}
-```
 
 ### gRPC
 
