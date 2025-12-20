@@ -17,3 +17,7 @@ tracing.workspace = true
 uuid.workspace = true
 rand.workspace = true
 dashmap.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+conveyor-config.workspace = true

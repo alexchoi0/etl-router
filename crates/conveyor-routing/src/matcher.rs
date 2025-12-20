@@ -9,6 +9,10 @@ pub enum Condition {
     MetadataMatch { key: String, pattern: String },
     MetadataExists(String),
     MetadataEquals { key: String, value: String },
+    MetadataGreaterThan { key: String, value: f64 },
+    MetadataLessThan { key: String, value: f64 },
+    MetadataGreaterThanOrEqual { key: String, value: f64 },
+    MetadataLessThanOrEqual { key: String, value: f64 },
     And(Vec<Condition>),
     Or(Vec<Condition>),
     Not(Box<Condition>),
@@ -38,6 +42,30 @@ impl Condition {
             }
             Condition::MetadataEquals { key, value } => {
                 record.metadata.get(key).map(|v| v == value).unwrap_or(false)
+            }
+            Condition::MetadataGreaterThan { key, value } => {
+                record.metadata.get(key)
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .map(|v| v > *value)
+                    .unwrap_or(false)
+            }
+            Condition::MetadataLessThan { key, value } => {
+                record.metadata.get(key)
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .map(|v| v < *value)
+                    .unwrap_or(false)
+            }
+            Condition::MetadataGreaterThanOrEqual { key, value } => {
+                record.metadata.get(key)
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .map(|v| v >= *value)
+                    .unwrap_or(false)
+            }
+            Condition::MetadataLessThanOrEqual { key, value } => {
+                record.metadata.get(key)
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .map(|v| v <= *value)
+                    .unwrap_or(false)
             }
             Condition::And(conditions) => {
                 conditions.iter().all(|c| c.evaluate(record))

@@ -66,19 +66,41 @@ impl RoutingEngine {
             return Err(anyhow::anyhow!("Pipeline is disabled: {}", pipeline_id));
         }
 
-        let next_stage = pipeline
+        let outgoing_edges: Vec<_> = pipeline
             .edges
             .iter()
-            .find(|e| e.from_stage == source_stage_id)
-            .map(|e| e.to_stage.clone());
+            .filter(|e| e.from_stage == source_stage_id)
+            .collect();
 
-        match next_stage {
-            Some(target_stage_id) => Ok(vec![RoutingDecision {
-                target_stage_id,
-                records: batch.records,
-            }]),
-            None => Ok(vec![]),
+        if outgoing_edges.is_empty() {
+            return Ok(vec![]);
         }
+
+        let mut decisions: HashMap<String, Vec<Record>> = HashMap::new();
+
+        for record in batch.records {
+            for edge in &outgoing_edges {
+                let should_route = match &edge.condition {
+                    Some(condition) => condition.evaluate(&record),
+                    None => true,
+                };
+
+                if should_route {
+                    decisions
+                        .entry(edge.to_stage.clone())
+                        .or_default()
+                        .push(record.clone());
+                }
+            }
+        }
+
+        Ok(decisions
+            .into_iter()
+            .map(|(target_stage_id, records)| RoutingDecision {
+                target_stage_id,
+                records,
+            })
+            .collect())
     }
 
     pub async fn find_pipelines_for_source(&self, source_service_name: &str) -> Vec<String> {

@@ -36,11 +36,11 @@ This document describes the architecture of the Conveyor system, a distributed d
 │  │   └──────────────┘    └──────────────┘    └──────────────┘            │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
-         ▲                               ▲
-         │                               │
-    ┌────┴────────┐                ┌─────┴─────┐
-    │ conveyorctl │                │ Dashboard │
-    └─────────────┘                └───────────┘
+                       ▲
+                       │
+                  ┌────┴────────┐
+                  │ conveyorctl │
+                  └─────────────┘
 ```
 
 ## Core Components
@@ -54,7 +54,6 @@ This document describes the architecture of the Conveyor system, a distributed d
 │ conveyor-router  │──────────────────▶│  conveyor-raft     │
 │      (main)      │──────────────────▶│  conveyor-grpc     │
 └──────────────────┘──────────────────▶│  conveyor-registry │
-                                       │  conveyor-graphql  │
                                        └────────────────────┘
 ┌──────────────────┐                   ┌───────────────────┐
 │ conveyor-sidecar │──────────────────▶│  conveyor-grpc    │
@@ -426,7 +425,6 @@ LookupService
 | `conveyor-dlq` | Dead letter queue handling |
 | `conveyor-config` | Configuration management |
 | `conveyor-metrics` | Prometheus metrics |
-| `conveyor-graphql` | GraphQL API for dashboard |
 
 ## Design Principles
 
@@ -440,4 +438,4 @@ LookupService
 
 5. **Kubernetes Native**: Full integration with Kubernetes via CRDs and operators. Familiar patterns for k8s users.
 
-6. **Observability Built-in**: Prometheus metrics, distributed tracing hooks, and a real-time dashboard.
+6. **Observability Built-in**: Prometheus metrics and distributed tracing hooks.

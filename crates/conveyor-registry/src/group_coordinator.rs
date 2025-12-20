@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 use dashmap::DashMap;
 use anyhow::Result;
-use tracing::info;
+use tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,8 +278,130 @@ impl GroupCoordinator {
         Ok(())
     }
 
+    pub async fn heartbeat_with_generation(
+        &self,
+        group_id: &str,
+        service_id: &str,
+        expected_generation: u64,
+    ) -> Result<()> {
+        let mut group = self.groups
+            .get_mut(group_id)
+            .ok_or_else(|| anyhow::anyhow!("Group not found: {}", group_id))?;
+
+        if group.generation != expected_generation {
+            return Err(anyhow::anyhow!(
+                "Stale generation: expected {}, got {}",
+                group.generation,
+                expected_generation
+            ));
+        }
+
+        let member = group
+            .members
+            .get_mut(service_id)
+            .ok_or_else(|| anyhow::anyhow!("Member not found: {}", service_id))?;
+
+        member.last_heartbeat = Some(Instant::now());
+        Ok(())
+    }
+
+    pub async fn get_current_generation(&self, group_id: &str) -> Option<u64> {
+        self.groups.get(group_id).map(|g| g.generation)
+    }
+
+    pub async fn validate_generation(&self, group_id: &str, generation: u64) -> Result<bool> {
+        let group = self.groups
+            .get(group_id)
+            .ok_or_else(|| anyhow::anyhow!("Group not found: {}", group_id))?;
+
+        Ok(group.generation == generation)
+    }
+
+    pub async fn leave_group_with_generation(
+        &self,
+        group_id: &str,
+        service_id: &str,
+        expected_generation: u64,
+    ) -> Result<Vec<RebalanceEvent>> {
+        {
+            let group = self.groups
+                .get(group_id)
+                .ok_or_else(|| anyhow::anyhow!("Group not found: {}", group_id))?;
+
+            if group.generation != expected_generation {
+                return Err(anyhow::anyhow!(
+                    "Stale generation: expected {}, got {}",
+                    group.generation,
+                    expected_generation
+                ));
+            }
+        }
+
+        self.leave_group(group_id, service_id).await
+    }
+
     pub async fn list_groups(&self) -> Vec<String> {
         self.groups.iter().map(|r| r.key().clone()).collect()
+    }
+
+    pub async fn check_member_timeouts(
+        &self,
+        group_id: &str,
+        timeout: std::time::Duration,
+    ) -> Result<Vec<RebalanceEvent>> {
+        let timed_out_members: Vec<String> = {
+            let group = self.groups
+                .get(group_id)
+                .ok_or_else(|| anyhow::anyhow!("Group not found: {}", group_id))?;
+
+            group.members
+                .iter()
+                .filter(|(_, member)| {
+                    member.last_heartbeat
+                        .map(|hb| hb.elapsed() > timeout)
+                        .unwrap_or(true)
+                })
+                .map(|(id, _)| id.clone())
+                .collect()
+        };
+
+        if timed_out_members.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut all_events = Vec::new();
+        for member_id in timed_out_members {
+            info!(group_id = %group_id, member_id = %member_id, "Member timed out, removing from group");
+            match self.leave_group(group_id, &member_id).await {
+                Ok(events) => all_events.extend(events),
+                Err(e) => {
+                    warn!(group_id = %group_id, member_id = %member_id, error = %e, "Failed to remove timed out member");
+                }
+            }
+        }
+
+        Ok(all_events)
+    }
+
+    pub fn get_members_needing_heartbeat(
+        &self,
+        group_id: &str,
+        threshold: std::time::Duration,
+    ) -> Vec<String> {
+        self.groups
+            .get(group_id)
+            .map(|group| {
+                group.members
+                    .iter()
+                    .filter(|(_, member)| {
+                        member.last_heartbeat
+                            .map(|hb| hb.elapsed() > threshold)
+                            .unwrap_or(true)
+                    })
+                    .map(|(id, _)| id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 

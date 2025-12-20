@@ -8,6 +8,8 @@ mod node;
 mod backup_service;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub mod testing;
 
 pub use state_machine::{RouterStateMachine, RouterState};
 pub use storage::LogStorage;

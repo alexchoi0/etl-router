@@ -13,7 +13,6 @@ conveyor-raft.workspace = true
 conveyor-registry.workspace = true
 conveyor-buffer.workspace = true
 conveyor-routing.workspace = true
-conveyor-graphql.workspace = true
 
 tokio.workspace = true
 tokio-stream.workspace = true
