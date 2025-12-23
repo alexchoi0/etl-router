@@ -1,20 +1,20 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/conveyor-proto",
-    "crates/conveyor-config",
-    "crates/conveyor-raft",
-    "crates/conveyor-registry",
-    "crates/conveyor-buffer",
-    "crates/conveyor-routing",
-    "crates/conveyor-metrics",
-    "crates/conveyor-grpc",
-    "crates/conveyor-dsl",
-    "crates/conveyor-dlq",
-    "crates/conveyor-router",
-    "crates/conveyorctl",
-    "crates/conveyor-operator",
-    "crates/conveyor-sidecar",
+    "crates/conveyor-etl-proto",
+    "crates/conveyor-etl-config",
+    "crates/conveyor-etl-raft",
+    "crates/conveyor-etl-registry",
+    "crates/conveyor-etl-buffer",
+    "crates/conveyor-etl-routing",
+    "crates/conveyor-etl-metrics",
+    "crates/conveyor-etl-grpc",
+    "crates/conveyor-etl-dsl",
+    "crates/conveyor-etl-dlq",
+    "crates/conveyor-etl-router",
+    "crates/conveyor-etl-cli",
+    "crates/conveyor-etl-operator",
+    "crates/conveyor-etl-sidecar",
 ]
 
 [workspace.package]
@@ -25,19 +25,19 @@ license = "MIT"
 
 [workspace.dependencies]
 # Internal crates
-conveyor-proto = { path = "crates/conveyor-proto" }
-conveyor-config = { path = "crates/conveyor-config" }
-conveyor-raft = { path = "crates/conveyor-raft" }
-conveyor-registry = { path = "crates/conveyor-registry" }
-conveyor-buffer = { path = "crates/conveyor-buffer" }
-conveyor-routing = { path = "crates/conveyor-routing" }
-conveyor-metrics = { path = "crates/conveyor-metrics" }
-conveyor-grpc = { path = "crates/conveyor-grpc" }
-conveyor-dsl = { path = "crates/conveyor-dsl" }
-conveyor-dlq = { path = "crates/conveyor-dlq" }
-conveyorctl = { path = "crates/conveyorctl" }
-conveyor-operator = { path = "crates/conveyor-operator" }
-conveyor-sidecar = { path = "crates/conveyor-sidecar" }
+conveyor-etl-proto = { version = "0.1.0", path = "crates/conveyor-etl-proto" }
+conveyor-etl-config = { version = "0.1.0", path = "crates/conveyor-etl-config" }
+conveyor-etl-raft = { version = "0.1.0", path = "crates/conveyor-etl-raft" }
+conveyor-etl-registry = { version = "0.1.0", path = "crates/conveyor-etl-registry" }
+conveyor-etl-buffer = { version = "0.1.0", path = "crates/conveyor-etl-buffer" }
+conveyor-etl-routing = { version = "0.1.0", path = "crates/conveyor-etl-routing" }
+conveyor-etl-metrics = { version = "0.1.0", path = "crates/conveyor-etl-metrics" }
+conveyor-etl-grpc = { version = "0.1.0", path = "crates/conveyor-etl-grpc" }
+conveyor-etl-dsl = { version = "0.1.0", path = "crates/conveyor-etl-dsl" }
+conveyor-etl-dlq = { version = "0.1.0", path = "crates/conveyor-etl-dlq" }
+conveyor-etl-cli = { version = "0.1.0", path = "crates/conveyor-etl-cli" }
+conveyor-etl-operator = { version = "0.1.0", path = "crates/conveyor-etl-operator" }
+conveyor-etl-sidecar = { version = "0.1.0", path = "crates/conveyor-etl-sidecar" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

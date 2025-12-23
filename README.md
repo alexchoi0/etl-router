@@ -1,10 +1,10 @@
-# Conveyor
+# Conveyor ETL
 
-A distributed, high-availability Conveyor platform built in Rust. Route data through pipelines of sources, transforms, and sinks with automatic service discovery, backpressure handling, and Kubernetes-native deployment.
+A distributed, high-availability Conveyor ETL platform built in Rust. Route data through pipelines of sources, transforms, and sinks with automatic service discovery, backpressure handling, and Kubernetes-native deployment.
 
-## What is Conveyor?
+## What is Conveyor ETL?
 
-Conveyor is a **control plane** for data pipelines. Instead of hardcoding connections between your data services, you define pipelines declaratively and Conveyor handles:
+Conveyor ETL is a **control plane** for data pipelines. Instead of hardcoding connections between your data services, you define pipelines declaratively and Conveyor handles:
 
 - **Service Discovery** - Automatically finds and registers your gRPC services
 - **Routing** - Routes records through pipeline stages across pods
@@ -16,7 +16,7 @@ Conveyor is a **control plane** for data pipelines. Instead of hardcoding connec
 ┌───────────────────────────────────────────────────────────────┐
 │                        CONTROL PLANE                          │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │            Conveyor Cluster (Raft Consensus)            │  │
+│  │         Conveyor ETL Cluster (Raft Consensus)           │  │
 │  │         ┌──────────┐ ┌──────────┐ ┌──────────┐          │  │
 │  │         │  Leader  │ │ Follower │ │ Follower │          │  │
 │  │         └────┬─────┘ └────┬─────┘ └────┬─────┘          │  │
@@ -53,7 +53,7 @@ Conveyor is a **control plane** for data pipelines. Instead of hardcoding connec
 | **Backpressure** | Credit-based flow control prevents unbounded memory growth |
 | **Dead Letter Queue** | Failed records are captured with full error context for replay |
 | **Kubernetes Operator** | CRDs for `Pipeline`, `Source`, `Transform`, `Sink` |
-| **CLI Tool** | `conveyorctl` for pipeline management, backup/restore, debugging |
+| **CLI Tool** | `conveyor-etl-cli` for pipeline management, backup/restore, debugging |
 
 ## How It Works
 
@@ -89,21 +89,21 @@ Conveyor is a **control plane** for data pipelines. Instead of hardcoding connec
 
 ```bash
 # Start the router
-cargo run -p conveyor-router
+cargo run -p conveyor-etl-router
 
 # In another terminal, start a sidecar
-cargo run -p conveyor-sidecar
+cargo run -p conveyor-etl-sidecar
 
 # Use the CLI
-cargo run -p conveyorctl -- get pipelines
+cargo run -p conveyor-etl-cli -- get pipelines
 ```
 
 ### Deploy to Kubernetes
 
 ```bash
 # Install CRDs and operator
-kubectl apply -f crates/conveyor-operator/deploy/crds/crds.yaml
-kubectl apply -k crates/conveyor-operator/deploy/operator/
+kubectl apply -f crates/conveyor-etl-operator/deploy/crds/crds.yaml
+kubectl apply -k crates/conveyor-etl-operator/deploy/operator/
 
 # Create a cluster
 kubectl apply -f - <<EOF
@@ -113,7 +113,7 @@ metadata:
   name: my-cluster
 spec:
   replicas: 3
-  image: conveyor/router:latest
+  image: conveyor-etl/router:latest
 EOF
 
 # Create a pipeline
@@ -135,20 +135,20 @@ EOF
 
 ```bash
 # Apply manifests
-conveyorctl apply -f pipelines/
+conveyor-etl-cli apply -f pipelines/
 
 # List resources
-conveyorctl get pipelines
-conveyorctl get sources --all-namespaces
+conveyor-etl-cli get pipelines
+conveyor-etl-cli get sources --all-namespaces
 
 # Visualize pipeline DAG
-conveyorctl graph -f pipelines/ --format dot | dot -Tpng > pipeline.png
+conveyor-etl-cli graph -f pipelines/ --format dot | dot -Tpng > pipeline.png
 
 # Backup cluster state
-conveyorctl backup create --dest s3://my-bucket/backups/
+conveyor-etl-cli backup create --dest s3://my-bucket/backups/
 
 # Restore from backup
-conveyorctl backup restore abc123 --source s3://my-bucket/backups/
+conveyor-etl-cli backup restore abc123 --source s3://my-bucket/backups/
 ```
 
 ## Pipeline Definition
@@ -195,14 +195,14 @@ spec:
 
 ```
                          ┌───────────────┐
-                         │  conveyorctl  │
+                         │  conveyor-etl-cli  │
                          └────┬──────────┘
                               │
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │  CONTROL PLANE                                                   │
 │  ┌───────────────────────────────────────────────────────────┐   │
-│  │  Conveyor Cluster:  Leader ◄──► Follower ◄──► Follower    │   │
+│  │  Conveyor ETL Cluster: Leader ◄──► Follower ◄──► Follower │   │
 │  └───────────────────────────────────────────────────────────┘   │
 │                          ▲                                       │
 │                          │                                       │
@@ -224,22 +224,22 @@ For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 ## Project Structure
 
 ```
-conveyor-router/
+conveyor-etl/
 ├── crates/
-│   ├── conveyor-router/      # Main router binary
-│   ├── conveyor-sidecar/     # Pod sidecar binary
-│   ├── conveyor-operator/    # Kubernetes operator
-│   ├── conveyorctl/          # CLI tool
-│   ├── conveyor-raft/        # Raft consensus
-│   ├── conveyor-grpc/        # gRPC handlers
-│   ├── conveyor-proto/       # Protocol buffers
-│   ├── conveyor-registry/    # Service registry
-│   ├── conveyor-routing/     # Routing engine
-│   ├── conveyor-dsl/         # Pipeline DSL
-│   ├── conveyor-buffer/      # Backpressure buffers
-│   ├── conveyor-dlq/         # Dead letter queue
-│   ├── conveyor-config/      # Configuration
-│   └── conveyor-metrics/     # Prometheus metrics
+│   ├── conveyor-etl-router/      # Main router binary
+│   ├── conveyor-etl-sidecar/     # Pod sidecar binary
+│   ├── conveyor-etl-operator/    # Kubernetes operator
+│   ├── conveyor-etl-cli/         # CLI tool
+│   ├── conveyor-etl-raft/        # Raft consensus
+│   ├── conveyor-etl-grpc/        # gRPC handlers
+│   ├── conveyor-etl-proto/       # Protocol buffers
+│   ├── conveyor-etl-registry/    # Service registry
+│   ├── conveyor-etl-routing/     # Routing engine
+│   ├── conveyor-etl-dsl/         # Pipeline DSL
+│   ├── conveyor-etl-buffer/      # Backpressure buffers
+│   ├── conveyor-etl-dlq/         # Dead letter queue
+│   ├── conveyor-etl-config/      # Configuration
+│   └── conveyor-etl-metrics/     # Prometheus metrics
 ```
 
 ## Configuration
@@ -258,7 +258,7 @@ conveyor-router/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SIDECAR_ID` | Unique sidecar identifier | auto-generated |
-| `CLUSTER_ENDPOINT` | Router cluster address | `conveyor-router:50051` |
+| `CLUSTER_ENDPOINT` | Router cluster address | `conveyor-etl-router:50051` |
 | `GRPC_PORT` | Sidecar gRPC port | `9091` |
 | `DISCOVERY_PORTS` | Ports to scan for services | `50051-50060` |
 
@@ -266,7 +266,7 @@ conveyor-router/
 
 ### gRPC
 
-Protocol definitions in `crates/conveyor-proto/proto/`:
+Protocol definitions in `crates/conveyor-etl-proto/proto/`:
 
 | Proto | Services |
 |-------|----------|
@@ -284,7 +284,7 @@ Protocol definitions in `crates/conveyor-proto/proto/`:
 cargo nextest run
 
 # Run specific crate tests
-cargo nextest run -p conveyor-raft
+cargo nextest run -p conveyor-etl-raft
 
 # Run with logging
 RUST_LOG=debug cargo nextest run

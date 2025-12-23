@@ -1,0 +1,17 @@
+[package]
+name = "conveyor-etl-dsl"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "YAML DSL parser for Conveyor ETL pipeline definitions"
+
+[dependencies]
+conveyor-etl-routing.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+schemars = "0.8"
+anyhow.workspace = true
+thiserror = "1.0"

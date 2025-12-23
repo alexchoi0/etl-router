@@ -1,0 +1,28 @@
+[package]
+name = "conveyor-etl-grpc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "gRPC handlers and server for Conveyor ETL"
+
+[dependencies]
+conveyor-etl-proto.workspace = true
+conveyor-etl-config.workspace = true
+conveyor-etl-raft.workspace = true
+conveyor-etl-registry.workspace = true
+conveyor-etl-buffer.workspace = true
+conveyor-etl-routing.workspace = true
+
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+dashmap.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+async-stream.workspace = true
+uuid.workspace = true
+chrono.workspace = true

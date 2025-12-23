@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package conveyor_etl.common;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+message RecordId {
+  string source_id = 1;
+  uint32 partition = 2;
+  uint64 sequence_number = 3;
+  bytes idempotency_key = 4;
+}
+
+message Record {
+  RecordId id = 1;
+  string record_type = 2;
+  bytes key = 3;
+  bytes payload = 4;
+  map<string, string> metadata = 5;
+  google.protobuf.Timestamp event_time = 6;
+  google.protobuf.Timestamp ingestion_time = 7;
+}
+
+message RecordBatch {
+  string batch_id = 1;
+  repeated Record records = 2;
+  Watermark watermark = 3;
+}
+
+message Watermark {
+  string source_id = 1;
+  uint32 partition = 2;
+  uint64 position = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message Offset {
+  uint64 value = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+enum ServiceType {
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  SERVICE_TYPE_SOURCE = 1;
+  SERVICE_TYPE_TRANSFORM = 2;
+  SERVICE_TYPE_SINK = 3;
+  SERVICE_TYPE_LOOKUP = 4;
+}
+
+message ServiceIdentity {
+  string service_id = 1;
+  ServiceType service_type = 2;
+  string name = 3;
+  string version = 4;
+  repeated string capabilities = 5;
+  string group_id = 6;
+}
+
+message Endpoint {
+  string host = 1;
+  uint32 port = 2;
+  bool use_tls = 3;
+}
+
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_DEGRADED = 2;
+  HEALTH_STATUS_UNHEALTHY = 3;
+}
+
+message Empty {}

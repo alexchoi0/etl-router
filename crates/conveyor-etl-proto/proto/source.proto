@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package conveyor_etl.source;
+
+import "common.proto";
+import "google/protobuf/timestamp.proto";
+
+service SourceRouter {
+  rpc PushRecords(stream PushRequest) returns (stream PushResponse);
+  rpc RequestCredits(CreditRequest) returns (CreditResponse);
+}
+
+message PushRequest {
+  oneof msg {
+    conveyor_etl.common.RecordBatch batch = 1;
+    Heartbeat heartbeat = 2;
+  }
+}
+
+message PushResponse {
+  oneof msg {
+    BatchAck ack = 1;
+    BackpressureSignal backpressure = 2;
+    CreditGrant credits = 3;
+  }
+}
+
+message Heartbeat {
+  google.protobuf.Timestamp timestamp = 1;
+}
+
+message BatchAck {
+  string batch_id = 1;
+  repeated RecordAck record_acks = 2;
+}
+
+message RecordAck {
+  conveyor_etl.common.RecordId record_id = 1;
+  AckStatus status = 2;
+  string error_message = 3;
+}
+
+enum AckStatus {
+  ACK_STATUS_UNSPECIFIED = 0;
+  ACK_STATUS_ACCEPTED = 1;
+  ACK_STATUS_DUPLICATE = 2;
+  ACK_STATUS_REJECTED = 3;
+}
+
+message BackpressureSignal {
+  bool pause = 1;
+  uint32 recommended_batch_size = 2;
+  uint64 resume_after_ms = 3;
+  BackpressureLevel level = 4;
+}
+
+enum BackpressureLevel {
+  BACKPRESSURE_LEVEL_NONE = 0;
+  BACKPRESSURE_LEVEL_LOW = 1;
+  BACKPRESSURE_LEVEL_MEDIUM = 2;
+  BACKPRESSURE_LEVEL_HIGH = 3;
+  BACKPRESSURE_LEVEL_CRITICAL = 4;
+}
+
+message CreditGrant {
+  uint64 credits = 1;
+  uint64 expires_at_ms = 2;
+}
+
+message CreditRequest {
+  string source_id = 1;
+  string pipeline_id = 2;
+  uint64 requested_credits = 3;
+  CreditPriority priority = 4;
+}
+
+enum CreditPriority {
+  CREDIT_PRIORITY_NORMAL = 0;
+  CREDIT_PRIORITY_HIGH = 1;
+  CREDIT_PRIORITY_CRITICAL = 2;
+}
+
+message CreditResponse {
+  uint64 granted_credits = 1;
+  uint64 total_available = 2;
+  uint64 expires_in_ms = 3;
+  BackpressureLevel current_pressure = 4;
+}

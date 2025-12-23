@@ -1,0 +1,86 @@
+apiVersion: conveyor.etl/v1
+kind: Source
+metadata:
+  name: kafka-events
+  namespace: default
+spec:
+  grpc:
+    endpoint: kafka-source-svc:50051
+    proto: etl.source.SourceService
+  config:
+    topic: user-events
+    groupId: etl-consumer
+
+---
+apiVersion: conveyor.etl/v1
+kind: Transform
+metadata:
+  name: filter-active
+  namespace: default
+spec:
+  grpc:
+    endpoint: filter-svc:50051
+    proto: etl.transform.TransformService
+  config:
+    expression: "user.status == 'active'"
+
+---
+apiVersion: conveyor.etl/v1
+kind: Transform
+metadata:
+  name: mask-pii
+  namespace: default
+spec:
+  grpc:
+    endpoint: mask-pii-svc:50051
+    proto: etl.transform.TransformService
+  config:
+    fields:
+      - email
+      - phone
+
+---
+apiVersion: conveyor.etl/v1
+kind: Sink
+metadata:
+  name: s3-archive
+  namespace: default
+spec:
+  grpc:
+    endpoint: s3-sink-svc:50051
+    proto: etl.sink.SinkService
+  config:
+    bucket: etl-archive
+    prefix: processed/
+
+---
+apiVersion: conveyor.etl/v1
+kind: Sink
+metadata:
+  name: error-handler
+  namespace: default
+spec:
+  grpc:
+    endpoint: error-handler-svc:50051
+    proto: etl.sink.SinkService
+  config:
+    deadLetterQueue: true
+
+---
+apiVersion: conveyor.etl/v1
+kind: Pipeline
+metadata:
+  name: user-archive
+  namespace: default
+spec:
+  source: kafka-events
+  steps:
+    - filter-active
+    - mask-pii
+  sink: s3-archive
+  enabled: true
+  dlq:
+    sink: error-handler
+    maxRetries: 3
+    retryBackoffMs: 100
+    maxRetryBackoffMs: 30000

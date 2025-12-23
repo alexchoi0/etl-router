@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: conveyor-etl-system
+  labels:
+    app.kubernetes.io/name: conveyor-etl-operator
+    app.kubernetes.io/component: operator

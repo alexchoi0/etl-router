@@ -1,0 +1,16 @@
+[package]
+name = "conveyor-etl-proto"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Protocol buffer definitions for Conveyor ETL"
+
+[dependencies]
+tonic.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+serde.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true

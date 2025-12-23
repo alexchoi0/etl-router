@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package conveyor_etl.sink;
+
+import "common.proto";
+
+service SinkService {
+  rpc WriteBatch(WriteBatchRequest) returns (WriteBatchResponse);
+  rpc WriteStream(stream WriteStreamRequest) returns (stream WriteStreamResponse);
+  rpc GetCapacity(conveyor_etl.common.Empty) returns (CapacityResponse);
+  rpc Flush(FlushRequest) returns (FlushResponse);
+}
+
+message WriteBatchRequest {
+  string sink_id = 1;
+  conveyor_etl.common.RecordBatch batch = 2;
+  WriteOptions options = 3;
+}
+
+message WriteOptions {
+  bool require_ack = 1;
+  uint32 timeout_ms = 2;
+  DeliveryGuarantee guarantee = 3;
+}
+
+enum DeliveryGuarantee {
+  DELIVERY_GUARANTEE_UNSPECIFIED = 0;
+  DELIVERY_GUARANTEE_AT_LEAST_ONCE = 1;
+  DELIVERY_GUARANTEE_EXACTLY_ONCE = 2;
+}
+
+message WriteBatchResponse {
+  string batch_id = 1;
+  WriteStatus status = 2;
+  repeated RecordWriteResult results = 3;
+}
+
+enum WriteStatus {
+  WRITE_STATUS_UNSPECIFIED = 0;
+  WRITE_STATUS_SUCCESS = 1;
+  WRITE_STATUS_PARTIAL = 2;
+  WRITE_STATUS_FAILED = 3;
+  WRITE_STATUS_PENDING = 4;
+}
+
+message RecordWriteResult {
+  conveyor_etl.common.RecordId record_id = 1;
+  bool success = 2;
+  string error = 3;
+  bool retryable = 4;
+}
+
+message WriteStreamRequest {
+  oneof msg {
+    StreamWriteInit init = 1;
+    conveyor_etl.common.Record record = 2;
+    CommitMarker commit = 3;
+  }
+}
+
+message StreamWriteInit {
+  string sink_id = 1;
+  string stream_id = 2;
+  WriteOptions options = 3;
+}
+
+message CommitMarker {
+  string stream_id = 1;
+  uint64 up_to_sequence = 2;
+}
+
+message WriteStreamResponse {
+  oneof msg {
+    StreamWriteReady ready = 1;
+    RecordWriteResult result = 2;
+    CommitAck commit_ack = 3;
+    BackpressureNotice backpressure = 4;
+  }
+}
+
+message StreamWriteReady {
+  string stream_id = 1;
+  uint64 initial_credits = 2;
+}
+
+message CommitAck {
+  string stream_id = 1;
+  uint64 committed_sequence = 2;
+}
+
+message BackpressureNotice {
+  uint64 available_credits = 1;
+  uint32 wait_ms = 2;
+}
+
+message CapacityResponse {
+  uint64 available_capacity = 1;
+  uint64 current_queue_depth = 2;
+  float estimated_latency_ms = 3;
+}
+
+message FlushRequest {
+  string sink_id = 1;
+  bool wait_for_completion = 2;
+}
+
+message FlushResponse {
+  bool success = 1;
+  uint64 flushed_records = 2;
+}

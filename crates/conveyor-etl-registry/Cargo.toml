@@ -1,0 +1,23 @@
+[package]
+name = "conveyor-etl-registry"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Service registry and consumer group coordination for Conveyor ETL"
+
+[dependencies]
+conveyor-etl-proto.workspace = true
+conveyor-etl-raft.workspace = true
+
+tokio.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+rand.workspace = true
+dashmap.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+conveyor-etl-config.workspace = true

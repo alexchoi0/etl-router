@@ -1,0 +1,21 @@
+[package]
+name = "conveyor-etl-router"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "High-availability Conveyor ETL routing layer with Raft consensus"
+
+[[bin]]
+name = "conveyor-etl-router"
+path = "src/main.rs"
+
+[dependencies]
+conveyor-etl-config.workspace = true
+conveyor-etl-grpc.workspace = true
+
+tokio.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -1,0 +1,759 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sources.conveyor.etl
+spec:
+  group: conveyor.etl
+  names:
+    categories: []
+    kind: Source
+    plural: sources
+    shortNames: []
+    singular: source
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.grpc.endpoint
+      name: Endpoint
+      type: string
+    - jsonPath: .status.health
+      name: Health
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for SourceSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              config: {}
+              grpc:
+                properties:
+                  endpoint:
+                    type: string
+                  proto:
+                    nullable: true
+                    type: string
+                  tls:
+                    nullable: true
+                    properties:
+                      caCert:
+                        nullable: true
+                        type: string
+                      clientCert:
+                        nullable: true
+                        type: string
+                      clientKey:
+                        nullable: true
+                        type: string
+                      insecureSkipVerify:
+                        default: false
+                        type: boolean
+                    type: object
+                required:
+                - endpoint
+                type: object
+            required:
+            - grpc
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      nullable: true
+                      type: string
+                    reason:
+                      nullable: true
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              health:
+                nullable: true
+                type: string
+              lastHeartbeat:
+                nullable: true
+                type: string
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+              registeredAt:
+                nullable: true
+                type: string
+              serviceId:
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: Source
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: transforms.conveyor.etl
+spec:
+  group: conveyor.etl
+  names:
+    categories: []
+    kind: Transform
+    plural: transforms
+    shortNames: []
+    singular: transform
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.grpc.endpoint
+      name: Endpoint
+      type: string
+    - jsonPath: .status.health
+      name: Health
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for TransformSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              config: {}
+              grpc:
+                properties:
+                  endpoint:
+                    type: string
+                  proto:
+                    nullable: true
+                    type: string
+                  tls:
+                    nullable: true
+                    properties:
+                      caCert:
+                        nullable: true
+                        type: string
+                      clientCert:
+                        nullable: true
+                        type: string
+                      clientKey:
+                        nullable: true
+                        type: string
+                      insecureSkipVerify:
+                        default: false
+                        type: boolean
+                    type: object
+                required:
+                - endpoint
+                type: object
+            required:
+            - grpc
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      nullable: true
+                      type: string
+                    reason:
+                      nullable: true
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              health:
+                nullable: true
+                type: string
+              lastHeartbeat:
+                nullable: true
+                type: string
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+              registeredAt:
+                nullable: true
+                type: string
+              serviceId:
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: Transform
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sinks.conveyor.etl
+spec:
+  group: conveyor.etl
+  names:
+    categories: []
+    kind: Sink
+    plural: sinks
+    shortNames: []
+    singular: sink
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.grpc.endpoint
+      name: Endpoint
+      type: string
+    - jsonPath: .status.health
+      name: Health
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for SinkSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              config: {}
+              grpc:
+                properties:
+                  endpoint:
+                    type: string
+                  proto:
+                    nullable: true
+                    type: string
+                  tls:
+                    nullable: true
+                    properties:
+                      caCert:
+                        nullable: true
+                        type: string
+                      clientCert:
+                        nullable: true
+                        type: string
+                      clientKey:
+                        nullable: true
+                        type: string
+                      insecureSkipVerify:
+                        default: false
+                        type: boolean
+                    type: object
+                required:
+                - endpoint
+                type: object
+            required:
+            - grpc
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      nullable: true
+                      type: string
+                    reason:
+                      nullable: true
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              health:
+                nullable: true
+                type: string
+              lastHeartbeat:
+                nullable: true
+                type: string
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+              registeredAt:
+                nullable: true
+                type: string
+              serviceId:
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: Sink
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: pipelines.conveyor.etl
+spec:
+  group: conveyor.etl
+  names:
+    categories: []
+    kind: Pipeline
+    plural: pipelines
+    shortNames: []
+    singular: pipeline
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.source
+      name: Source
+      type: string
+    - jsonPath: .spec.sink
+      name: Sink
+      type: string
+    - jsonPath: .spec.enabled
+      name: Enabled
+      type: boolean
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for PipelineSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              dlq:
+                nullable: true
+                properties:
+                  maxRetries:
+                    default: 3
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  maxRetryBackoffMs:
+                    default: 30000
+                    format: uint64
+                    minimum: 0.0
+                    type: integer
+                  retryBackoffMs:
+                    default: 100
+                    format: uint64
+                    minimum: 0.0
+                    type: integer
+                  sink:
+                    type: string
+                required:
+                - sink
+                type: object
+              enabled:
+                default: true
+                type: boolean
+              sink:
+                type: string
+              source:
+                type: string
+              steps:
+                default: []
+                items:
+                  type: string
+                type: array
+            required:
+            - sink
+            - source
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      nullable: true
+                      type: string
+                    reason:
+                      nullable: true
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              enabled:
+                default: false
+                type: boolean
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+              pipelineId:
+                nullable: true
+                type: string
+              recordsProcessed:
+                format: uint64
+                minimum: 0.0
+                nullable: true
+                type: integer
+              stageStatuses:
+                additionalProperties:
+                  properties:
+                    avgLatencyMs:
+                      format: double
+                      type: number
+                    errors:
+                      format: uint64
+                      minimum: 0.0
+                      type: integer
+                    recordsBuffered:
+                      format: uint64
+                      minimum: 0.0
+                      type: integer
+                    recordsProcessed:
+                      format: uint64
+                      minimum: 0.0
+                      type: integer
+                  required:
+                  - avgLatencyMs
+                  - errors
+                  - recordsBuffered
+                  - recordsProcessed
+                  type: object
+                default: {}
+                type: object
+              version:
+                format: uint64
+                minimum: 0.0
+                nullable: true
+                type: integer
+            type: object
+        required:
+        - spec
+        title: Pipeline
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: etlrouterclusters.conveyor.etl
+spec:
+  group: conveyor.etl
+  names:
+    categories: []
+    kind: EtlRouterCluster
+    plural: etlrouterclusters
+    shortNames:
+    - erc
+    singular: etlroutercluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.replicas
+      name: Replicas
+      type: integer
+    - jsonPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - jsonPath: .status.leaderId
+      name: Leader
+      type: integer
+    - jsonPath: .status.clusterHealth
+      name: Health
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for EtlRouterClusterSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              env:
+                additionalProperties:
+                  type: string
+                default: {}
+                type: object
+              image:
+                type: string
+              imagePullPolicy:
+                nullable: true
+                type: string
+              imagePullSecrets:
+                default: []
+                items:
+                  type: string
+                type: array
+              metrics:
+                default:
+                  enabled: false
+                  port: 9090
+                properties:
+                  enabled:
+                    default: false
+                    type: boolean
+                  port:
+                    default: 9090
+                    format: int32
+                    type: integer
+                type: object
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                default: {}
+                type: object
+              raft:
+                default:
+                  electionTimeoutMs: 1000
+                  heartbeatIntervalMs: 100
+                  snapshotInterval: 10000
+                properties:
+                  electionTimeoutMs:
+                    default: 1000
+                    format: uint64
+                    minimum: 0.0
+                    type: integer
+                  heartbeatIntervalMs:
+                    default: 100
+                    format: uint64
+                    minimum: 0.0
+                    type: integer
+                  snapshotInterval:
+                    default: 10000
+                    format: uint64
+                    minimum: 0.0
+                    type: integer
+                type: object
+              replicas:
+                default: 3
+                format: int32
+                type: integer
+              resources:
+                nullable: true
+                properties:
+                  limits:
+                    nullable: true
+                    properties:
+                      cpu:
+                        nullable: true
+                        type: string
+                      memory:
+                        nullable: true
+                        type: string
+                    type: object
+                  requests:
+                    nullable: true
+                    properties:
+                      cpu:
+                        nullable: true
+                        type: string
+                      memory:
+                        nullable: true
+                        type: string
+                    type: object
+                type: object
+              service:
+                default:
+                  annotations: {}
+                  graphqlPort: 8080
+                  grpcPort: 50051
+                  raftPort: 50052
+                  serviceType: null
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    default: {}
+                    type: object
+                  graphqlPort:
+                    default: 8080
+                    format: int32
+                    type: integer
+                  grpcPort:
+                    default: 50051
+                    format: int32
+                    type: integer
+                  raftPort:
+                    default: 50052
+                    format: int32
+                    type: integer
+                  serviceType:
+                    nullable: true
+                    type: string
+                type: object
+              storage:
+                default:
+                  size: ''
+                  storageClass: ''
+                properties:
+                  size:
+                    default: 10Gi
+                    type: string
+                  storageClass:
+                    default: standard
+                    type: string
+                type: object
+            required:
+            - image
+            type: object
+          status:
+            nullable: true
+            properties:
+              clusterHealth:
+                default: ''
+                type: string
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      nullable: true
+                      type: string
+                    reason:
+                      nullable: true
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              endpoint:
+                nullable: true
+                type: string
+              leaderId:
+                format: uint64
+                minimum: 0.0
+                nullable: true
+                type: integer
+              nodes:
+                default: []
+                items:
+                  properties:
+                    address:
+                      type: string
+                    healthy:
+                      type: boolean
+                    nodeId:
+                      format: uint64
+                      minimum: 0.0
+                      type: integer
+                    podName:
+                      type: string
+                    role:
+                      type: string
+                  required:
+                  - address
+                  - healthy
+                  - nodeId
+                  - podName
+                  - role
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+              readyReplicas:
+                default: 0
+                format: int32
+                type: integer
+              replicas:
+                default: 0
+                format: int32
+                type: integer
+              term:
+                format: uint64
+                minimum: 0.0
+                nullable: true
+                type: integer
+            type: object
+        required:
+        - spec
+        title: EtlRouterCluster
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
