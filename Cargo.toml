@@ -93,6 +93,9 @@ tar = "0.4"
 flate2 = "1"
 zstd = "0.13"
 
+# Raft consensus
+openraft = { version = "0.10", features = ["serde", "storage-v2"] }
+
 # Testing
 tempfile = "3"
 

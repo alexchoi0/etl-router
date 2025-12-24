@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, broadcast};
-use dashmap::DashMap;
-use anyhow::Result;
-use tracing::{info, warn};
-use serde::{Deserialize, Serialize};
 
-use conveyor_etl_raft::RaftNode;
+use anyhow::Result;
+use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use tokio::sync::{broadcast, RwLock};
+use tracing::{info, warn};
+
+use conveyor_etl_raft::{ConveyorRaft, RouterState};
 
 #[derive(Debug, Clone)]
 pub enum ServiceEvent {
@@ -101,7 +102,9 @@ impl RegisteredService {
 
 pub struct ServiceRegistry {
     #[allow(dead_code)]
-    raft_node: Arc<RwLock<RaftNode>>,
+    raft: Arc<ConveyorRaft>,
+    #[allow(dead_code)]
+    state: Arc<RwLock<RouterState>>,
     services: DashMap<String, RegisteredService>,
     by_name: DashMap<String, Vec<String>>,
     by_group: DashMap<String, Vec<String>>,
@@ -110,10 +113,11 @@ pub struct ServiceRegistry {
 }
 
 impl ServiceRegistry {
-    pub fn new(raft_node: Arc<RwLock<RaftNode>>) -> Self {
+    pub fn new(raft: Arc<ConveyorRaft>, state: Arc<RwLock<RouterState>>) -> Self {
         let (event_tx, _) = broadcast::channel(256);
         Self {
-            raft_node,
+            raft,
+            state,
             services: DashMap::new(),
             by_name: DashMap::new(),
             by_group: DashMap::new(),
@@ -346,7 +350,8 @@ impl ServiceRegistry {
     }
 
     pub async fn cleanup_expired(&self) -> Vec<String> {
-        let expired: Vec<String> = self.services
+        let expired: Vec<String> = self
+            .services
             .iter()
             .filter(|r| r.value().is_lease_expired())
             .map(|r| r.key().clone())

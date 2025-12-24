@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::collections::HashMap;
+
 use tokio::sync::RwLock;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status, Streaming};
@@ -8,37 +9,40 @@ use tracing::info;
 
 use crate::error::{GrpcError, IntoStatus, ResultExt};
 
+use conveyor_etl_proto::common::{Endpoint, HealthStatus, ServiceIdentity};
 use conveyor_etl_proto::registry::{
-    service_registry_server::ServiceRegistry as ServiceRegistryTrait,
-    RegisterRequest, RegisterResponse,
-    DeregisterRequest, DeregisterResponse,
-    HeartbeatRequest, HeartbeatResponse,
-    ListServicesRequest, ListServicesResponse, RegisteredService as ProtoRegisteredService,
-    WatchServicesRequest, ServiceEvent, EventType,
-    GetServiceEndpointsRequest, GetServiceEndpointsResponse, EndpointInfo,
-    JoinGroupRequest, JoinGroupResponse,
-    LeaveGroupRequest, LeaveGroupResponse,
-    ServiceHealth as ProtoServiceHealth, ServiceMetadata,
+    service_registry_server::ServiceRegistry as ServiceRegistryTrait, DeregisterRequest,
+    DeregisterResponse, EndpointInfo, EventType, GetServiceEndpointsRequest,
+    GetServiceEndpointsResponse, HeartbeatRequest, HeartbeatResponse, JoinGroupRequest,
+    JoinGroupResponse, LeaveGroupRequest, LeaveGroupResponse, ListServicesRequest,
+    ListServicesResponse, RegisterRequest, RegisterResponse,
+    RegisteredService as ProtoRegisteredService, ServiceEvent, ServiceHealth as ProtoServiceHealth,
+    ServiceMetadata, WatchServicesRequest,
 };
-use conveyor_etl_proto::common::{Endpoint, ServiceIdentity, HealthStatus};
-use conveyor_etl_raft::RaftNode;
+use conveyor_etl_raft::{ConveyorRaft, RouterState};
 use conveyor_etl_registry::{ServiceRegistry, ServiceType};
 
 pub struct ServiceRegistryImpl {
     #[allow(dead_code)]
-    raft_node: Arc<RwLock<RaftNode>>,
+    raft: Arc<ConveyorRaft>,
+    #[allow(dead_code)]
+    state: Arc<RwLock<RouterState>>,
     registry: Arc<RwLock<ServiceRegistry>>,
 }
 
 impl ServiceRegistryImpl {
     pub fn new(
-        raft_node: Arc<RwLock<RaftNode>>,
+        raft: Arc<ConveyorRaft>,
+        state: Arc<RwLock<RouterState>>,
         registry: Arc<RwLock<ServiceRegistry>>,
     ) -> Self {
-        Self { raft_node, registry }
+        Self {
+            raft,
+            state,
+            registry,
+        }
     }
 }
-
 
 type HeartbeatStream = Pin<Box<dyn Stream<Item = Result<HeartbeatResponse, Status>> + Send>>;
 type WatchServicesStream = Pin<Box<dyn Stream<Item = Result<ServiceEvent, Status>> + Send>>;
@@ -53,8 +57,12 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
         request: Request<RegisterRequest>,
     ) -> Result<Response<RegisterResponse>, Status> {
         let req = request.into_inner();
-        let identity = req.identity.ok_or_else(|| GrpcError::missing_field("identity"))?;
-        let endpoint = req.endpoint.ok_or_else(|| GrpcError::missing_field("endpoint"))?;
+        let identity = req
+            .identity
+            .ok_or_else(|| GrpcError::missing_field("identity"))?;
+        let endpoint = req
+            .endpoint
+            .ok_or_else(|| GrpcError::missing_field("endpoint"))?;
 
         info!(
             service_id = %identity.service_id,
@@ -65,9 +73,7 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
         let endpoint_str = format!("{}:{}", endpoint.host, endpoint.port);
         let service_type = ServiceType::from_proto(identity.service_type);
 
-        let labels: HashMap<String, String> = req.metadata
-            .map(|m| m.labels)
-            .unwrap_or_default();
+        let labels: HashMap<String, String> = req.metadata.map(|m| m.labels).unwrap_or_default();
 
         let group_id = if identity.group_id.is_empty() {
             None
@@ -76,26 +82,27 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
         };
 
         let registry = self.registry.write().await;
-        match registry.register(
-            identity.service_id.clone(),
-            identity.name,
-            service_type,
-            endpoint_str,
-            labels,
-            group_id,
-        ).await {
-            Ok(lease_duration) => {
-                Ok(Response::new(RegisterResponse {
-                    success: true,
-                    registration_id: identity.service_id,
-                    lease_id: uuid::Uuid::new_v4().to_string(),
-                    lease_ttl: Some(prost_types::Duration {
-                        seconds: lease_duration.as_secs() as i64,
-                        nanos: 0,
-                    }),
-                    initial_credits: 10000,
-                }))
-            }
+        match registry
+            .register(
+                identity.service_id.clone(),
+                identity.name,
+                service_type,
+                endpoint_str,
+                labels,
+                group_id,
+            )
+            .await
+        {
+            Ok(lease_duration) => Ok(Response::new(RegisterResponse {
+                success: true,
+                registration_id: identity.service_id,
+                lease_id: uuid::Uuid::new_v4().to_string(),
+                lease_ttl: Some(prost_types::Duration {
+                    seconds: lease_duration.as_secs() as i64,
+                    nanos: 0,
+                }),
+                initial_credits: 10000,
+            })),
             Err(e) => Err(e.into_status()),
         }
     }
@@ -158,8 +165,9 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
         let registry = self.registry.read().await;
         let services = registry.list_all().await;
 
-        let service_infos: Vec<ProtoRegisteredService> = services.iter().map(|s| {
-            ProtoRegisteredService {
+        let service_infos: Vec<ProtoRegisteredService> = services
+            .iter()
+            .map(|s| ProtoRegisteredService {
                 identity: Some(ServiceIdentity {
                     service_id: s.service_id.clone(),
                     service_type: s.service_type.to_proto(),
@@ -170,7 +178,12 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
                 }),
                 endpoint: Some(Endpoint {
                     host: s.endpoint.split(':').next().unwrap_or("").to_string(),
-                    port: s.endpoint.split(':').nth(1).and_then(|p| p.parse().ok()).unwrap_or(0),
+                    port: s
+                        .endpoint
+                        .split(':')
+                        .nth(1)
+                        .and_then(|p| p.parse().ok())
+                        .unwrap_or(0),
                     use_tls: false,
                 }),
                 metadata: Some(ServiceMetadata {
@@ -187,8 +200,8 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
                 registered_at: None,
                 last_heartbeat: None,
                 assigned_partitions: Vec::new(),
-            }
-        }).collect();
+            })
+            .collect();
 
         Ok(Response::new(ListServicesResponse {
             services: service_infos,
@@ -221,19 +234,25 @@ impl ServiceRegistryTrait for ServiceRegistryImpl {
 
         let services = registry.get_services_by_name(&req.service_name).await;
 
-        let endpoints: Vec<EndpointInfo> = services.iter().map(|s| {
-            EndpointInfo {
+        let endpoints: Vec<EndpointInfo> = services
+            .iter()
+            .map(|s| EndpointInfo {
                 service_id: s.service_id.clone(),
                 endpoint: Some(Endpoint {
                     host: s.endpoint.split(':').next().unwrap_or("").to_string(),
-                    port: s.endpoint.split(':').nth(1).and_then(|p| p.parse().ok()).unwrap_or(0),
+                    port: s
+                        .endpoint
+                        .split(':')
+                        .nth(1)
+                        .and_then(|p| p.parse().ok())
+                        .unwrap_or(0),
                     use_tls: false,
                 }),
                 weight: 100,
                 health: HealthStatus::Healthy as i32,
                 assigned_partitions: Vec::new(),
-            }
-        }).collect();
+            })
+            .collect();
 
         Ok(Response::new(GetServiceEndpointsResponse { endpoints }))
     }

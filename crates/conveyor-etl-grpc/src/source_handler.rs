@@ -1,33 +1,38 @@
 use std::pin::Pin;
 use std::sync::Arc;
+
 use tokio::sync::RwLock;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status, Streaming};
 
-use conveyor_etl_proto::source::{
-    source_router_server::SourceRouter,
-    PushRequest, PushResponse, CreditRequest, CreditResponse,
-    BatchAck, RecordAck, AckStatus, BackpressureSignal, CreditGrant,
-    BackpressureLevel,
-};
-use conveyor_etl_raft::RaftNode;
 use conveyor_etl_buffer::BufferManager;
+use conveyor_etl_proto::source::{
+    source_router_server::SourceRouter, AckStatus, BackpressureLevel, BackpressureSignal, BatchAck,
+    CreditGrant, CreditRequest, CreditResponse, PushRequest, PushResponse, RecordAck,
+};
+use conveyor_etl_raft::{ConveyorRaft, RouterState};
 use conveyor_etl_routing::RoutingEngine;
 
 pub struct SourceRouterImpl {
-    raft_node: Arc<RwLock<RaftNode>>,
+    #[allow(dead_code)]
+    raft: Arc<ConveyorRaft>,
+    #[allow(dead_code)]
+    state: Arc<RwLock<RouterState>>,
     buffer_manager: Arc<RwLock<BufferManager>>,
+    #[allow(dead_code)]
     routing_engine: Arc<RwLock<RoutingEngine>>,
 }
 
 impl SourceRouterImpl {
     pub fn new(
-        raft_node: Arc<RwLock<RaftNode>>,
+        raft: Arc<ConveyorRaft>,
+        state: Arc<RwLock<RouterState>>,
         buffer_manager: Arc<RwLock<BufferManager>>,
         routing_engine: Arc<RwLock<RoutingEngine>>,
     ) -> Self {
         Self {
-            raft_node,
+            raft,
+            state,
             buffer_manager,
             routing_engine,
         }
@@ -45,9 +50,7 @@ impl SourceRouter for SourceRouterImpl {
         request: Request<Streaming<PushRequest>>,
     ) -> Result<Response<Self::PushRecordsStream>, Status> {
         let mut stream = request.into_inner();
-        let _raft_node = self.raft_node.clone();
         let buffer_manager = self.buffer_manager.clone();
-        let _routing_engine = self.routing_engine.clone();
 
         let output = async_stream::try_stream! {
             while let Some(req) = stream.message().await? {

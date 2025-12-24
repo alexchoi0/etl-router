@@ -1,381 +1,176 @@
-use std::collections::HashMap;
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use std::io::Cursor;
+use std::sync::Arc;
 
-use super::commands::{RouterCommand, SerializableTimestamp, SidecarLocalService, SidecarStageAssignment};
+use openraft::storage::{RaftSnapshotBuilder, RaftStateMachine};
+use openraft::{Entry, EntryPayload, LogId, Snapshot, SnapshotMeta, StorageError, StoredMembership};
+use tokio::sync::RwLock;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct RouterState {
-    pub services: HashMap<String, ServiceState>,
-    pub pipelines: HashMap<String, PipelineState>,
-    pub checkpoints: CheckpointState,
-    pub groups: HashMap<String, GroupState>,
-    pub sidecars: HashMap<String, SidecarState>,
-    pub service_locations: HashMap<String, String>,
-}
+use crate::config::{NodeId, RouterRequest, RouterResponse, TypeConfig};
+use crate::router_state::RouterState;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServiceState {
-    pub service_id: String,
-    pub service_name: String,
-    pub service_type: String,
-    pub endpoint: String,
-    pub labels: HashMap<String, String>,
-    pub health: String,
-    pub group_id: Option<String>,
-    pub registered_at: u64,
-    pub last_heartbeat: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PipelineState {
-    pub pipeline_id: String,
-    pub name: String,
-    pub config: Vec<u8>,
-    pub enabled: bool,
-    pub version: u64,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CheckpointState {
-    pub source_offsets: HashMap<String, HashMap<u32, u64>>,
-    pub watermarks: HashMap<String, WatermarkState>,
-    pub service_checkpoints: HashMap<String, ServiceCheckpointState>,
-    pub group_offsets: HashMap<String, HashMap<String, HashMap<u32, u64>>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WatermarkState {
-    pub source_id: String,
-    pub partition: u32,
-    pub position: u64,
-    pub event_time_secs: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServiceCheckpointState {
-    pub service_id: String,
-    pub checkpoint_id: String,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StoredSnapshot {
+    pub meta: SnapshotMeta<TypeConfig>,
     pub data: Vec<u8>,
-    pub source_offsets: HashMap<String, u64>,
-    pub created_at: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroupState {
-    pub group_id: String,
-    pub stage_id: String,
-    pub members: Vec<String>,
-    pub partition_assignments: HashMap<String, Vec<u32>>,
-    pub generation: u64,
+pub struct StateMachine {
+    state: Arc<RwLock<RouterState>>,
+    last_applied_log: Option<LogId<NodeId>>,
+    last_membership: StoredMembership<TypeConfig>,
+    snapshot: Option<StoredSnapshot>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SidecarState {
-    pub sidecar_id: String,
-    pub pod_name: String,
-    pub namespace: String,
-    pub endpoint: String,
-    pub local_services: Vec<SidecarLocalService>,
-    pub assigned_pipelines: HashMap<String, Vec<SidecarStageAssignment>>,
-    pub registered_at: u64,
-    pub last_heartbeat: u64,
-}
-
-fn current_timestamp() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-}
-
-impl RouterState {
-    pub fn get_source_offsets(&self, source_id: &str) -> HashMap<u32, u64> {
-        self.checkpoints
-            .source_offsets
-            .get(source_id)
-            .cloned()
-            .unwrap_or_default()
+impl StateMachine {
+    pub fn new(state: Arc<RwLock<RouterState>>) -> Self {
+        Self {
+            state,
+            last_applied_log: None,
+            last_membership: StoredMembership::default(),
+            snapshot: None,
+        }
     }
 
-    pub fn apply_command(&mut self, command: RouterCommand) -> Result<()> {
-        match command {
-            RouterCommand::Noop => {}
+    pub fn state(&self) -> Arc<RwLock<RouterState>> {
+        self.state.clone()
+    }
+}
 
-            RouterCommand::RegisterService { service_id, service_name, service_type, endpoint, labels, group_id } => {
-                self.apply_register_service(service_id, service_name, service_type, endpoint, labels, group_id);
-            }
-            RouterCommand::DeregisterService { service_id } => {
-                self.services.remove(&service_id);
-            }
-            RouterCommand::RenewLease { service_id } => {
-                if let Some(service) = self.services.get_mut(&service_id) {
-                    service.last_heartbeat = current_timestamp();
-                }
-            }
-            RouterCommand::UpdateServiceHealth { service_id, health } => {
-                if let Some(service) = self.services.get_mut(&service_id) {
-                    service.health = health;
-                }
-            }
+impl RaftSnapshotBuilder<TypeConfig> for StateMachine {
+    async fn build_snapshot(&mut self) -> Result<Snapshot<TypeConfig>, StorageError<TypeConfig>> {
+        let state = self.state.read().await;
+        let data = bincode::serialize(&*state).map_err(|e| {
+            StorageError::read_state_machine(anyhow::anyhow!("Serialize error: {}", e))
+        })?;
+        drop(state);
 
-            RouterCommand::CreatePipeline { pipeline_id, name, config } => {
-                self.apply_create_pipeline(pipeline_id, name, config);
-            }
-            RouterCommand::UpdatePipeline { pipeline_id, config } => {
-                if let Some(pipeline) = self.pipelines.get_mut(&pipeline_id) {
-                    pipeline.config = config;
-                    pipeline.version += 1;
-                }
-            }
-            RouterCommand::DeletePipeline { pipeline_id } => {
-                self.pipelines.remove(&pipeline_id);
-            }
-            RouterCommand::EnablePipeline { pipeline_id } => {
-                if let Some(pipeline) = self.pipelines.get_mut(&pipeline_id) {
-                    pipeline.enabled = true;
-                }
-            }
-            RouterCommand::DisablePipeline { pipeline_id } => {
-                if let Some(pipeline) = self.pipelines.get_mut(&pipeline_id) {
-                    pipeline.enabled = false;
-                }
-            }
+        let snapshot_id = format!(
+            "{}-{}",
+            self.last_applied_log
+                .map(|l| l.index)
+                .unwrap_or(0),
+            uuid::Uuid::new_v4()
+        );
 
-            RouterCommand::CommitSourceOffset { source_id, partition, offset } => {
-                self.apply_commit_source_offset(source_id, partition, offset);
-            }
-            RouterCommand::AdvanceWatermark { source_id, partition, position, event_time } => {
-                self.apply_advance_watermark(source_id, partition, position, event_time);
-            }
-            RouterCommand::SaveServiceCheckpoint { service_id, checkpoint_id, data, source_offsets } => {
-                self.apply_save_service_checkpoint(service_id, checkpoint_id, data, source_offsets);
-            }
-            RouterCommand::CommitGroupOffset { group_id, source_id, partition, offset } => {
-                self.apply_commit_group_offset(group_id, source_id, partition, offset);
-            }
+        let meta = SnapshotMeta {
+            last_log_id: self.last_applied_log,
+            last_membership: self.last_membership.clone(),
+            snapshot_id,
+        };
 
-            RouterCommand::JoinGroup { service_id, group_id, stage_id } => {
-                self.apply_join_group(service_id, group_id, stage_id);
-            }
-            RouterCommand::LeaveGroup { service_id, group_id } => {
-                self.apply_leave_group(service_id, group_id);
-            }
-            RouterCommand::AssignPartitions { group_id, assignments, generation } => {
-                if let Some(group) = self.groups.get_mut(&group_id) {
-                    group.partition_assignments = assignments;
-                    group.generation = generation;
-                }
-            }
+        let snapshot = StoredSnapshot {
+            meta: meta.clone(),
+            data: data.clone(),
+        };
+        self.snapshot = Some(snapshot);
 
-            RouterCommand::RegisterSidecar { sidecar_id, pod_name, namespace, endpoint, local_services } => {
-                self.apply_register_sidecar(sidecar_id, pod_name, namespace, endpoint, local_services);
-            }
-            RouterCommand::DeregisterSidecar { sidecar_id } => {
-                self.apply_deregister_sidecar(sidecar_id);
-            }
-            RouterCommand::UpdateSidecarHeartbeat { sidecar_id, timestamp } => {
-                if let Some(sidecar) = self.sidecars.get_mut(&sidecar_id) {
-                    sidecar.last_heartbeat = timestamp;
+        Ok(Snapshot {
+            meta,
+            snapshot: Box::new(Cursor::new(data)),
+        })
+    }
+}
+
+impl RaftStateMachine<TypeConfig> for StateMachine {
+    type SnapshotBuilder = Self;
+
+    async fn applied_state(
+        &mut self,
+    ) -> Result<(Option<LogId<NodeId>>, StoredMembership<TypeConfig>), StorageError<TypeConfig>>
+    {
+        Ok((self.last_applied_log, self.last_membership.clone()))
+    }
+
+    async fn apply<I>(
+        &mut self,
+        entries: I,
+    ) -> Result<Vec<RouterResponse>, StorageError<TypeConfig>>
+    where
+        I: IntoIterator<Item = Entry<TypeConfig>> + Send,
+    {
+        let mut results = Vec::new();
+        let mut state = self.state.write().await;
+
+        for entry in entries {
+            self.last_applied_log = Some(entry.log_id);
+
+            match entry.payload {
+                EntryPayload::Blank => {
+                    results.push(RouterResponse {
+                        success: true,
+                        error: None,
+                    });
                 }
-            }
-            RouterCommand::AssignPipelineToSidecar { pipeline_id, sidecar_id, stage_assignments } => {
-                if let Some(sidecar) = self.sidecars.get_mut(&sidecar_id) {
-                    sidecar.assigned_pipelines.insert(pipeline_id, stage_assignments);
-                }
-            }
-            RouterCommand::RevokePipelineFromSidecar { pipeline_id, sidecar_id } => {
-                if let Some(sidecar) = self.sidecars.get_mut(&sidecar_id) {
-                    sidecar.assigned_pipelines.remove(&pipeline_id);
+                EntryPayload::Normal(req) => match state.apply_command(req.command) {
+                    Ok(()) => results.push(RouterResponse {
+                        success: true,
+                        error: None,
+                    }),
+                    Err(e) => results.push(RouterResponse {
+                        success: false,
+                        error: Some(e.to_string()),
+                    }),
+                },
+                EntryPayload::Membership(m) => {
+                    self.last_membership = StoredMembership::new(Some(entry.log_id), m);
+                    results.push(RouterResponse {
+                        success: true,
+                        error: None,
+                    });
                 }
             }
         }
+
+        Ok(results)
+    }
+
+    async fn get_snapshot_builder(&mut self) -> Self::SnapshotBuilder {
+        StateMachine {
+            state: self.state.clone(),
+            last_applied_log: self.last_applied_log,
+            last_membership: self.last_membership.clone(),
+            snapshot: self.snapshot.clone(),
+        }
+    }
+
+    async fn begin_receiving_snapshot(
+        &mut self,
+    ) -> Result<Box<Cursor<Vec<u8>>>, StorageError<TypeConfig>> {
+        Ok(Box::new(Cursor::new(Vec::new())))
+    }
+
+    async fn install_snapshot(
+        &mut self,
+        meta: &SnapshotMeta<TypeConfig>,
+        snapshot: Box<Cursor<Vec<u8>>>,
+    ) -> Result<(), StorageError<TypeConfig>> {
+        let data = snapshot.into_inner();
+
+        let new_state: RouterState = bincode::deserialize(&data).map_err(|e| {
+            StorageError::read_state_machine(anyhow::anyhow!("Deserialize error: {}", e))
+        })?;
+
+        *self.state.write().await = new_state;
+        self.last_applied_log = meta.last_log_id;
+        self.last_membership = meta.last_membership.clone();
+
+        self.snapshot = Some(StoredSnapshot {
+            meta: meta.clone(),
+            data,
+        });
 
         Ok(())
     }
 
-    fn apply_register_service(
+    async fn get_current_snapshot(
         &mut self,
-        service_id: String,
-        service_name: String,
-        service_type: String,
-        endpoint: String,
-        labels: HashMap<String, String>,
-        group_id: Option<String>,
-    ) {
-        let now = current_timestamp();
-        self.services.insert(
-            service_id.clone(),
-            ServiceState {
-                service_id,
-                service_name,
-                service_type,
-                endpoint,
-                labels,
-                health: "healthy".to_string(),
-                group_id,
-                registered_at: now,
-                last_heartbeat: now,
-            },
-        );
-    }
-
-    fn apply_create_pipeline(&mut self, pipeline_id: String, name: String, config: Vec<u8>) {
-        self.pipelines.insert(
-            pipeline_id.clone(),
-            PipelineState {
-                pipeline_id,
-                name,
-                config,
-                enabled: false,
-                version: 1,
-            },
-        );
-    }
-
-    fn apply_commit_source_offset(&mut self, source_id: String, partition: u32, offset: u64) {
-        self.checkpoints
-            .source_offsets
-            .entry(source_id)
-            .or_default()
-            .insert(partition, offset);
-    }
-
-    fn apply_advance_watermark(
-        &mut self,
-        source_id: String,
-        partition: u32,
-        position: u64,
-        event_time: Option<SerializableTimestamp>,
-    ) {
-        self.checkpoints.watermarks.insert(
-            format!("{}:{}", source_id, partition),
-            WatermarkState {
-                source_id,
-                partition,
-                position,
-                event_time_secs: event_time.as_ref().map(|t| t.seconds).unwrap_or(0),
-            },
-        );
-    }
-
-    fn apply_save_service_checkpoint(
-        &mut self,
-        service_id: String,
-        checkpoint_id: String,
-        data: Vec<u8>,
-        source_offsets: HashMap<String, u64>,
-    ) {
-        self.checkpoints.service_checkpoints.insert(
-            service_id.clone(),
-            ServiceCheckpointState {
-                service_id,
-                checkpoint_id,
-                data,
-                source_offsets,
-                created_at: current_timestamp(),
-            },
-        );
-    }
-
-    fn apply_commit_group_offset(
-        &mut self,
-        group_id: String,
-        source_id: String,
-        partition: u32,
-        offset: u64,
-    ) {
-        self.checkpoints
-            .group_offsets
-            .entry(group_id)
-            .or_default()
-            .entry(source_id)
-            .or_default()
-            .insert(partition, offset);
-    }
-
-    fn apply_join_group(&mut self, service_id: String, group_id: String, stage_id: String) {
-        let group = self.groups.entry(group_id.clone()).or_insert_with(|| {
-            GroupState {
-                group_id,
-                stage_id,
-                members: Vec::new(),
-                partition_assignments: HashMap::new(),
-                generation: 0,
-            }
-        });
-
-        if !group.members.contains(&service_id) {
-            group.members.push(service_id);
-            group.generation += 1;
+    ) -> Result<Option<Snapshot<TypeConfig>>, StorageError<TypeConfig>> {
+        match &self.snapshot {
+            Some(s) => Ok(Some(Snapshot {
+                meta: s.meta.clone(),
+                snapshot: Box::new(Cursor::new(s.data.clone())),
+            })),
+            None => Ok(None),
         }
-    }
-
-    fn apply_leave_group(&mut self, service_id: String, group_id: String) {
-        if let Some(group) = self.groups.get_mut(&group_id) {
-            group.members.retain(|m| m != &service_id);
-            group.partition_assignments.remove(&service_id);
-            group.generation += 1;
-        }
-    }
-
-    fn apply_register_sidecar(
-        &mut self,
-        sidecar_id: String,
-        pod_name: String,
-        namespace: String,
-        endpoint: String,
-        local_services: Vec<SidecarLocalService>,
-    ) {
-        let now = current_timestamp();
-
-        for svc in &local_services {
-            self.service_locations
-                .insert(svc.service_name.clone(), sidecar_id.clone());
-        }
-
-        self.sidecars.insert(
-            sidecar_id.clone(),
-            SidecarState {
-                sidecar_id,
-                pod_name,
-                namespace,
-                endpoint,
-                local_services,
-                assigned_pipelines: HashMap::new(),
-                registered_at: now,
-                last_heartbeat: now,
-            },
-        );
-    }
-
-    fn apply_deregister_sidecar(&mut self, sidecar_id: String) {
-        if let Some(sidecar) = self.sidecars.remove(&sidecar_id) {
-            for svc in &sidecar.local_services {
-                self.service_locations.remove(&svc.service_name);
-            }
-        }
-    }
-}
-
-pub struct RouterStateMachine {
-    pub state: RouterState,
-}
-
-impl RouterStateMachine {
-    pub fn new() -> Self {
-        Self {
-            state: RouterState::default(),
-        }
-    }
-
-    pub fn apply(&mut self, command: RouterCommand) -> Result<()> {
-        self.state.apply_command(command)
-    }
-}
-
-impl Default for RouterStateMachine {
-    fn default() -> Self {
-        Self::new()
     }
 }

@@ -26,6 +26,8 @@ uuid.workspace = true
 tar.workspace = true
 flate2.workspace = true
 zstd.workspace = true
+openraft.workspace = true
+async-trait.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
